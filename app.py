@@ -82,6 +82,18 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS faturas (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            cartao_enc      TEXT NOT NULL DEFAULT '',
+            vencimento_enc  TEXT,
+            valor_enc       TEXT NOT NULL DEFAULT '',
+            pago_enc        TEXT NOT NULL DEFAULT '',
+            criado_por_enc  TEXT,
+            criado_em       TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         _seed_users(db)
 
@@ -337,6 +349,176 @@ def caixas_excluir(caixa_id):
     db.execute("DELETE FROM caixas WHERE id = ?", (caixa_id,))
     db.commit()
     return redirect(url_for("caixas"))
+
+
+# ── Faturas ──────────────────────────────────────────────────────────
+
+def _decrypt_fatura(row, dek: bytes) -> dict:
+    def safe(val):
+        if not val:
+            return ""
+        try:
+            return decrypt_field(val, dek)
+        except Exception:
+            return ""
+
+    venc_str = safe(row["vencimento_enc"])
+    venc_obj = None
+    if venc_str:
+        try:
+            venc_obj = datetime.strptime(venc_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    valor_str = safe(row["valor_enc"])
+    try:
+        valor_f = float(valor_str) if valor_str else 0.0
+    except ValueError:
+        valor_f = 0.0
+
+    pago_str = safe(row["pago_enc"])
+    pago = pago_str == "1"
+
+    return {
+        "id":         row["id"],
+        "cartao":     safe(row["cartao_enc"]),
+        "vencimento": venc_obj,
+        "valor":      valor_f,
+        "pago":       pago,
+        "criado_por": safe(row["criado_por_enc"]),
+        "criado_em":  row["criado_em"],
+    }
+
+
+@app.route("/faturas")
+@login_necessario
+def faturas():
+    mes    = sanitize(request.args.get("mes"),    4)
+    ano    = sanitize(request.args.get("ano"),    4)
+    cartao = sanitize(request.args.get("cartao"), 150)
+    pago   = sanitize(request.args.get("pago"),   1)
+
+    dek  = get_dek()
+    db   = get_db()
+    rows = db.execute("SELECT * FROM faturas ORDER BY criado_em DESC").fetchall()
+
+    todos = [_decrypt_fatura(r, dek) for r in rows]
+
+    filtrados = []
+    for f in todos:
+        if mes    and (not f["vencimento"] or f["vencimento"].strftime("%m") != mes.zfill(2)):
+            continue
+        if ano    and (not f["vencimento"] or f["vencimento"].strftime("%Y") != ano):
+            continue
+        if cartao and f["cartao"] != cartao:
+            continue
+        if pago == "1" and not f["pago"]:
+            continue
+        if pago == "0" and f["pago"]:
+            continue
+        filtrados.append(f)
+
+    filtrados.sort(key=lambda f: f["vencimento"] or datetime.min, reverse=True)
+
+    total_geral  = sum(f["valor"] for f in filtrados)
+    total_pago   = sum(f["valor"] for f in filtrados if f["pago"])
+    total_aberto = sum(f["valor"] for f in filtrados if not f["pago"])
+    cartoes      = sorted({f["cartao"] for f in todos if f["cartao"]})
+
+    faturas_list = [type("Obj", (), f)() for f in filtrados]
+    return render_template(
+        "faturas.html",
+        faturas=faturas_list,
+        total_geral=total_geral,
+        total_pago=total_pago,
+        total_aberto=total_aberto,
+        filtros={"mes": mes, "ano": ano, "cartao": cartao, "pago": pago},
+        cartoes=cartoes,
+    )
+
+
+@app.route("/faturas/novo", methods=["GET"])
+@login_necessario
+def faturas_novo_form():
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    return render_template("faturas_form.html", fatura=None, hoje=hoje, erro=None, form=None)
+
+
+@app.route("/faturas/novo", methods=["POST"])
+@login_necessario
+def faturas_novo():
+    dek      = get_dek()
+    cartao   = sanitize(request.form.get("cartao"), 150)
+    venc     = sanitize(request.form.get("vencimento"), 10)
+    pago     = "1" if request.form.get("pago") else "0"
+    usuario  = session.get("usuario_nome", "")
+    try:
+        valor = round(float(request.form.get("valor") or 0), 2)
+    except ValueError:
+        valor = 0.0
+
+    db  = get_db()
+    cur = db.execute(
+        "INSERT INTO faturas (cartao_enc, vencimento_enc, valor_enc, pago_enc, criado_por_enc) VALUES (?,?,?,?,?)",
+        (
+            encrypt_field(cartao,       dek),
+            encrypt_field(venc,         dek) if venc else None,
+            encrypt_field(str(valor),   dek),
+            encrypt_field(pago,         dek),
+            encrypt_field(usuario,      dek),
+        ),
+    )
+    db.commit()
+    return redirect(url_for("faturas_editar_form", fatura_id=cur.lastrowid))
+
+
+@app.route("/faturas/<int:fatura_id>/editar", methods=["GET"])
+@login_necessario
+def faturas_editar_form(fatura_id):
+    dek = get_dek()
+    db  = get_db()
+    row = db.execute("SELECT * FROM faturas WHERE id = ?", (fatura_id,)).fetchone()
+    if not row:
+        abort(404)
+    fatura_obj = type("Obj", (), _decrypt_fatura(row, dek))()
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    return render_template("faturas_form.html", fatura=fatura_obj, hoje=hoje, erro=None, form=None)
+
+
+@app.route("/faturas/<int:fatura_id>/editar", methods=["POST"])
+@login_necessario
+def faturas_editar(fatura_id):
+    dek    = get_dek()
+    cartao = sanitize(request.form.get("cartao"), 150)
+    venc   = sanitize(request.form.get("vencimento"), 10)
+    pago   = "1" if request.form.get("pago") else "0"
+    try:
+        valor = round(float(request.form.get("valor") or 0), 2)
+    except ValueError:
+        valor = 0.0
+
+    db = get_db()
+    db.execute(
+        "UPDATE faturas SET cartao_enc=?, vencimento_enc=?, valor_enc=?, pago_enc=? WHERE id=?",
+        (
+            encrypt_field(cartao,     dek),
+            encrypt_field(venc,       dek) if venc else None,
+            encrypt_field(str(valor), dek),
+            encrypt_field(pago,       dek),
+            fatura_id,
+        ),
+    )
+    db.commit()
+    return redirect(url_for("faturas_editar_form", fatura_id=fatura_id))
+
+
+@app.route("/faturas/<int:fatura_id>/excluir", methods=["POST"])
+@login_necessario
+def faturas_excluir(fatura_id):
+    db = get_db()
+    db.execute("DELETE FROM faturas WHERE id = ?", (fatura_id,))
+    db.commit()
+    return redirect(url_for("faturas"))
 
 
 if __name__ == "__main__":
