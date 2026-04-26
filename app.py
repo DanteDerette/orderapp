@@ -36,6 +36,15 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "orderapp.db")
 logging.basicConfig(level=logging.INFO)
 
 
+@app.template_filter("brl")
+def brl_filter(value):
+    try:
+        s = "{:,.2f}".format(float(value))
+        return s.replace(",", "X").replace(".", ",").replace("X", ".")
+    except (ValueError, TypeError):
+        return "0,00"
+
+
 def _session_fernet() -> Fernet:
     raw = hashlib.sha256(app.secret_key.encode()).digest()
     return Fernet(base64.urlsafe_b64encode(raw))

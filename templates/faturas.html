@@ -203,7 +203,7 @@
               <tr>
                 <td style="white-space:nowrap;color:#888">{{ f.vencimento.strftime('%d/%m/%Y') if f.vencimento else '—' }}</td>
                 <td style="font-weight:600">{{ f.cartao }}</td>
-                <td style="font-weight:700;white-space:nowrap">R$ {{ '%.2f'|format(f.valor|float)|replace('.',',') }}</td>
+                <td style="font-weight:700;white-space:nowrap">R$ {{ f.valor|brl }}</td>
                 <td>
                   {% if f.pago %}
                     <span class="badge-pago">Pago</span>
@@ -233,7 +233,7 @@
                 &nbsp;
                 {% if f.pago %}<span class="badge-pago">Pago</span>{% else %}<span class="badge-aberto">Em aberto</span>{% endif %}
               </span>
-              <span class="fatura-card-total">R$ {{ '%.2f'|format(f.valor|float)|replace('.',',') }}</span>
+              <span class="fatura-card-total">R$ {{ f.valor|brl }}</span>
               <span class="fatura-card-ver">Ver</span>
             </div>
           </a>
