@@ -6,7 +6,7 @@
 
 1. Commit das alterações no git
 2. Push para o GitHub (`DanteDerette/orderapp`, branch `main`)
-3. Reiniciar a aplicação na VPS via SSH
+3. Enviar arquivos para a VPS e reiniciar o serviço
 
 ### Comandos a executar
 
@@ -16,11 +16,21 @@ git add -A
 git commit -m "<descrição da mudança>"
 git push origin main
 
-# 2. Reiniciar na VPS
-ssh vps "cd ~/orderapp && git pull origin main && sudo systemctl restart orderapp"
+# 2. Enviar arquivos para VPS e reiniciar
+# A VPS usa uWSGI — o diretório do app é /home/orderapp
+# Não sobrescrever: orderapp.db, app.ini, wsgi.py, mysock.sock, .secret_key
+tar czf - app.py crypto.py requirements.txt templates/ CLAUDE.md deploy.sh \
+  | ssh vps "tar xzf - -C /home/orderapp/"
+ssh vps "sudo systemctl restart orderapp"
 ```
 
-> Se o serviço na VPS tiver outro nome (ex: `gunicorn`, `orderapp.service`), ajustar o `systemctl restart` conforme necessário.
+## VPS
+
+- Serviço: `orderapp.service` (uWSGI)
+- Diretório: `/home/orderapp/`
+- Alias SSH: `vps`
+- Reiniciar: `ssh vps "sudo systemctl restart orderapp"`
+- Arquivos exclusivos da VPS (não sobrescrever): `app.ini`, `wsgi.py`, `mysock.sock`, `orderapp.db`, `.secret_key`
 
 ## Repositório
 
@@ -29,6 +39,6 @@ ssh vps "cd ~/orderapp && git pull origin main && sudo systemctl restart orderap
 
 ## Stack
 
-- Python / Flask
+- Python / Flask + uWSGI
 - SQLite (`orderapp.db`)
 - Templates Jinja2 em `templates/`

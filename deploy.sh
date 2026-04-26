@@ -7,6 +7,8 @@ git add -A
 git commit -m "$MSG" 2>/dev/null || echo "[deploy] Nada novo para commitar."
 git push origin main
 
-ssh vps "cd ~/orderapp && git pull origin main && sudo systemctl restart orderapp"
+tar czf - app.py crypto.py requirements.txt templates/ CLAUDE.md deploy.sh \
+  | ssh vps "tar xzf - -C /home/orderapp/"
+ssh vps "sudo systemctl restart orderapp"
 
 echo "[deploy] Concluído."
