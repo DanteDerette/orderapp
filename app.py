@@ -439,18 +439,21 @@ def faturas():
 
     filtrados.sort(key=lambda f: f["vencimento"] or datetime.min, reverse=True)
 
-    total_geral  = sum(f["valor"] for f in filtrados)
-    total_pago   = sum(f["valor"] for f in filtrados if f["pago"])
-    total_aberto = sum(f["valor"] for f in filtrados if not f["pago"])
-    cartoes      = sorted({f["cartao"] for f in todos if f["cartao"]})
+    cartoes = sorted({f["cartao"] for f in todos if f["cartao"]})
 
-    faturas_list = [type("Obj", (), f)() for f in filtrados]
+    from itertools import groupby
+    dias = []
+    for venc_key, grupo in groupby(filtrados, key=lambda f: f["vencimento"]):
+        itens = list(grupo)
+        dias.append({
+            "vencimento": venc_key,
+            "itens":      [type("Obj", (), f)() for f in itens],
+            "total":      sum(f["valor"] for f in itens),
+        })
+
     return render_template(
         "faturas.html",
-        faturas=faturas_list,
-        total_geral=total_geral,
-        total_pago=total_pago,
-        total_aberto=total_aberto,
+        dias=dias,
         filtros={"mes": mes, "ano": ano, "cartao": cartao, "pago": pago},
         cartoes=cartoes,
     )

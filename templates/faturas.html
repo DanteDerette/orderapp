@@ -70,13 +70,19 @@
     .faturas-table td { padding: 11px 14px; font-size: 13px; color: #333; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
     .faturas-table tr:last-child td { border-bottom: none; }
     .faturas-table tr:hover td { background: #fafafa; }
+    .faturas-table .tr-total td { background: #f7f7f7; border-top: 1px solid #e8e8e8; border-bottom: 2px solid #e0e0e0; }
+    .faturas-table .tr-total .total-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .4px; }
+    .faturas-table .tr-total .total-val { font-size: 14px; font-weight: 800; color: #1a1a1a; white-space: nowrap; }
     .btn-ver { font-size: 11px; color: #aaa; text-decoration: none; padding: 3px 8px; border-radius: 4px; transition: background .15s, color .15s; white-space: nowrap; }
     .btn-ver:hover { background: #f0f0f0; color: #1a1a1a; }
 
     .badge-pago   { display: inline-block; background: #e8f5e9; color: #2e7d32; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
     .badge-aberto { display: inline-block; background: #fff3e0; color: #e65100; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
 
-    .fatura-cards { display: none; flex-direction: column; gap: 8px; }
+    .fatura-cards { display: none; flex-direction: column; gap: 4px; }
+    .dia-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 4px 4px; }
+    .dia-header-data { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+    .dia-header-total { font-size: 13px; font-weight: 800; color: #1a1a1a; }
     .fatura-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit; }
     .fatura-card-cartao { font-size: 13px; font-weight: 700; color: #1a1a1a; line-height: 1.3; }
     .fatura-card-bottom { display: flex; align-items: center; gap: 10px; }
@@ -186,7 +192,7 @@
 
     <div class="conteudo" id="pagina-conteudo">
       <div class="card tabela-wrap">
-        {% if faturas %}
+        {% if dias %}
         <div style="overflow-x:auto">
           <table class="faturas-table">
             <thead>
@@ -199,19 +205,22 @@
               </tr>
             </thead>
             <tbody>
-            {% for f in faturas %}
+            {% for dia in dias %}
+              {% for f in dia.itens %}
               <tr>
                 <td style="white-space:nowrap;color:#888">{{ f.vencimento.strftime('%d/%m/%Y') if f.vencimento else '—' }}</td>
                 <td style="font-weight:600">{{ f.cartao }}</td>
                 <td style="font-weight:700;white-space:nowrap">R$ {{ f.valor|brl }}</td>
                 <td>
-                  {% if f.pago %}
-                    <span class="badge-pago">Pago</span>
-                  {% else %}
-                    <span class="badge-aberto">Em aberto</span>
-                  {% endif %}
+                  {% if f.pago %}<span class="badge-pago">Pago</span>
+                  {% else %}<span class="badge-aberto">Em aberto</span>{% endif %}
                 </td>
                 <td><a class="btn-ver" href="/faturas/{{ f.id }}/editar">editar →</a></td>
+              </tr>
+              {% endfor %}
+              <tr class="tr-total">
+                <td colspan="2"><span class="total-label">Total {{ dia.vencimento.strftime('%d/%m/%Y') if dia.vencimento else '—' }}</span></td>
+                <td colspan="3"><span class="total-val">R$ {{ dia.total|brl }}</span></td>
               </tr>
             {% endfor %}
             </tbody>
@@ -223,20 +232,24 @@
       </div>
 
       <div class="fatura-cards">
-        {% if faturas %}
-          {% for f in faturas %}
+        {% if dias %}
+          {% for dia in dias %}
+          <div class="dia-header">
+            <span class="dia-header-data">{{ dia.vencimento.strftime('%d/%m/%Y') if dia.vencimento else '—' }}</span>
+            <span class="dia-header-total">R$ {{ dia.total|brl }}</span>
+          </div>
+          {% for f in dia.itens %}
           <a class="fatura-card" href="/faturas/{{ f.id }}/editar">
             <div class="fatura-card-cartao">{{ f.cartao }}</div>
             <div class="fatura-card-bottom">
               <span class="fatura-card-meta">
-                {{ f.vencimento.strftime('%d/%m/%Y') if f.vencimento else '' }}
-                &nbsp;
                 {% if f.pago %}<span class="badge-pago">Pago</span>{% else %}<span class="badge-aberto">Em aberto</span>{% endif %}
               </span>
               <span class="fatura-card-total">R$ {{ f.valor|brl }}</span>
               <span class="fatura-card-ver">Ver</span>
             </div>
           </a>
+          {% endfor %}
           {% endfor %}
         {% else %}
           <div class="vazio-card">
@@ -312,7 +325,7 @@
     function limparFiltros() { location.href = '/faturas'; }
     function buscaGeral(q) {
       q = q.toLowerCase().trim();
-      document.querySelectorAll('.faturas-table tbody tr').forEach(function(tr) { tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
+      document.querySelectorAll('.faturas-table tbody tr:not(.tr-total)').forEach(function(tr) { tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
       document.querySelectorAll('.fatura-card').forEach(function(card) { card.style.display = (!q || card.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
     }
   </script>
