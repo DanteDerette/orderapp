@@ -70,10 +70,16 @@
     .caixas-table td { padding: 11px 14px; font-size: 13px; color: #333; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
     .caixas-table tr:last-child td { border-bottom: none; }
     .caixas-table tr:hover td { background: #fafafa; }
+    .caixas-table .tr-total td { background: #f7f7f7; border-top: 1px solid #e8e8e8; border-bottom: 2px solid #e0e0e0; }
+    .caixas-table .tr-total .total-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .4px; }
+    .caixas-table .tr-total .total-val { font-size: 14px; font-weight: 800; color: #1a1a1a; white-space: nowrap; }
     .btn-ver { font-size: 11px; color: #aaa; text-decoration: none; padding: 3px 8px; border-radius: 4px; transition: background .15s, color .15s; white-space: nowrap; }
     .btn-ver:hover { background: #f0f0f0; color: #1a1a1a; }
 
-    .caixa-cards { display: none; flex-direction: column; gap: 8px; }
+    .caixa-cards { display: none; flex-direction: column; gap: 4px; }
+    .dia-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 4px 4px; }
+    .dia-header-data { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+    .dia-header-total { font-size: 13px; font-weight: 800; color: #1a1a1a; }
     .caixa-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit; }
     .caixa-card-banco { font-size: 13px; font-weight: 700; color: #1a1a1a; line-height: 1.3; }
     .caixa-card-bottom { display: flex; align-items: center; gap: 10px; }
@@ -177,7 +183,7 @@
 
     <div class="conteudo" id="pagina-conteudo">
       <div class="card tabela-wrap">
-        {% if caixas %}
+        {% if dias %}
         <div style="overflow-x:auto">
           <table class="caixas-table">
             <thead>
@@ -189,12 +195,18 @@
               </tr>
             </thead>
             <tbody>
-            {% for c in caixas %}
+            {% for dia in dias %}
+              {% for c in dia.itens %}
               <tr>
                 <td style="white-space:nowrap;color:#888">{{ c.data.strftime('%d/%m/%Y') if c.data else '—' }}</td>
                 <td style="font-weight:600">{{ c.banco }}</td>
                 <td style="font-weight:700;white-space:nowrap">R$ {{ '%.2f'|format(c.valor|float)|replace('.',',') }}</td>
                 <td><a class="btn-ver" href="/caixas/{{ c.id }}/editar">editar →</a></td>
+              </tr>
+              {% endfor %}
+              <tr class="tr-total">
+                <td colspan="2"><span class="total-label">Total {{ dia.data.strftime('%d/%m/%Y') if dia.data else '—' }}</span></td>
+                <td colspan="2"><span class="total-val">R$ {{ '%.2f'|format(dia.total)|replace('.',',') }}</span></td>
               </tr>
             {% endfor %}
             </tbody>
@@ -206,16 +218,22 @@
       </div>
 
       <div class="caixa-cards">
-        {% if caixas %}
-          {% for c in caixas %}
+        {% if dias %}
+          {% for dia in dias %}
+          <div class="dia-header">
+            <span class="dia-header-data">{{ dia.data.strftime('%d/%m/%Y') if dia.data else '—' }}</span>
+            <span class="dia-header-total">R$ {{ '%.2f'|format(dia.total)|replace('.',',') }}</span>
+          </div>
+          {% for c in dia.itens %}
           <a class="caixa-card" href="/caixas/{{ c.id }}/editar">
             <div class="caixa-card-banco">{{ c.banco }}</div>
             <div class="caixa-card-bottom">
-              <span class="caixa-card-meta">{{ c.data.strftime('%d/%m/%Y') if c.data else '' }}</span>
+              <span class="caixa-card-meta"></span>
               <span class="caixa-card-total">R$ {{ '%.2f'|format(c.valor|float)|replace('.',',') }}</span>
               <span class="caixa-card-ver">Ver</span>
             </div>
           </a>
+          {% endfor %}
           {% endfor %}
         {% else %}
           <div class="vazio-card">
@@ -287,7 +305,7 @@
     function limparFiltros() { location.href = '/caixas'; }
     function buscaGeral(q) {
       q = q.toLowerCase().trim();
-      document.querySelectorAll('.caixas-table tbody tr').forEach(function(tr) { tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
+      document.querySelectorAll('.caixas-table tbody tr:not(.tr-total)').forEach(function(tr) { tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
       document.querySelectorAll('.caixa-card').forEach(function(card) { card.style.display = (!q || card.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
     }
   </script>

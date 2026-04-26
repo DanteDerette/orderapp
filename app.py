@@ -260,14 +260,22 @@ def caixas():
 
     filtrados.sort(key=lambda c: c["data"] or datetime.min, reverse=True)
 
-    total  = sum(c["valor"] for c in filtrados)
     bancos = sorted({c["banco"] for c in todos if c["banco"]})
 
-    caixas_list = [type("Obj", (), c)() for c in filtrados]
+    # Agrupa por data para exibir totalizador diário
+    from itertools import groupby
+    dias = []
+    for data_key, grupo in groupby(filtrados, key=lambda c: c["data"]):
+        itens = list(grupo)
+        dias.append({
+            "data":  data_key,
+            "itens": [type("Obj", (), c)() for c in itens],
+            "total": sum(c["valor"] for c in itens),
+        })
+
     return render_template(
         "caixas.html",
-        caixas=caixas_list,
-        total=total,
+        dias=dias,
         filtros={"mes": mes, "ano": ano, "banco": banco},
         bancos=bancos,
     )
