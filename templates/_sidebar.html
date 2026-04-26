@@ -1,0 +1,121 @@
+<script>
+  (function(){
+    var mob = window.innerWidth < 1024 || /Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+    if (mob) document.documentElement.classList.add("mob");
+  })();
+</script>
+<style>
+  .sidebar { background:#fff; height:100vh; display:flex; flex-direction:column; padding-top:0; position:fixed; top:0; left:0; bottom:0; width:10%; min-width:80px; z-index:10; transition:transform 0.28s ease; border-right:1px solid #e8e8e8; }
+  html.mob .sidebar { width:260px !important; min-width:260px !important; z-index:1000 !important; transform:translateX(-100%); }
+  html.mob .sidebar.aberta { transform:translateX(0) !important; }
+
+  .sidebar-header { padding:14px 12px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #e8e8e8; flex-shrink:0; }
+  html.mob .sidebar-header { padding:16px 12px; }
+  .sidebar-header-info { flex:1; min-width:0; }
+  .sidebar-brand { display:block; font-size:12px; font-weight:700; color:#0a0a0a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  html.mob .sidebar-brand { font-size:13px; }
+  .sidebar-brand-sub { display:block; font-size:10px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+
+  .sidebar-nav { flex:1; overflow-y:auto; width:100%; display:flex; flex-direction:column; gap:0; padding:8px 0; }
+  html.mob .sidebar-nav { padding:12px 0; }
+
+  .sidebar-item { width:100%; display:flex; flex-direction:row; align-items:flex-start; gap:10px; padding:10px 12px; cursor:pointer; color:#666; text-decoration:none; transition:background 0.15s, color 0.15s, border-color 0.15s; border-left:3px solid transparent; }
+  html.mob .sidebar-item { padding:12px 14px; gap:12px; }
+  .sidebar-item:hover { background:#f0f2f5; color:#0a0a0a; }
+  .sidebar-item.ativo { background:#e8f0fe; color:#1a73e8; border-left-color:#1a73e8; }
+  .sidebar-item.ativo .sidebar-item-category { color:#1a73e8; }
+  .sidebar-item.ativo .sidebar-item-name { color:#1a73e8; }
+  .sidebar-item svg { flex-shrink:0; width:18px; height:18px; margin-top:2px; }
+  html.mob .sidebar-item svg { width:20px; height:20px; }
+  .sidebar-item-text { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .sidebar-item-category { display:block; font-size:9px; color:#999; text-transform:uppercase; font-weight:600; letter-spacing:0.3px; }
+  html.mob .sidebar-item-category { font-size:10px; }
+  .sidebar-item-name { display:block; font-size:11px; font-weight:500; line-height:1.3; word-break:break-word; white-space:normal; }
+  html.mob .sidebar-item-name { font-size:12px; }
+
+  .sidebar-footer { margin-top:auto; width:100%; padding:12px 6px; border-top:1px solid #e8e8e8; flex-shrink:0; }
+  html.mob .sidebar-footer { padding:14px 8px; }
+  .sidebar-footer form button { width:100%; background:none; border:none; color:#666; font-size:11px; font-family:inherit; cursor:pointer; display:flex; flex-direction:row; align-items:center; gap:10px; padding:10px 12px; transition:color 0.15s; white-space:nowrap; border-radius:6px; }
+  html.mob .sidebar-footer form button { font-size:12px; padding:12px 14px; }
+  .sidebar-footer form button:hover { color:#e53935; background:#ffeaea; }
+
+  .sidebar-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:999; display:none; opacity:0; pointer-events:none; transition:opacity 0.25s ease; }
+  html.mob .sidebar-overlay { display:block; }
+  .sidebar-overlay.visivel { opacity:1; pointer-events:auto; }
+
+  .main { margin-left:10%; width:90%; min-height:100vh; display:flex; flex-direction:column; }
+  html.mob .main { margin-left:0 !important; width:100% !important; }
+
+  .sidebar-nav::-webkit-scrollbar { width:6px; }
+  .sidebar-nav::-webkit-scrollbar-track { background:transparent; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background:#ddd; border-radius:3px; }
+  .sidebar-nav::-webkit-scrollbar-thumb:hover { background:#999; }
+</style>
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-header-info">
+      <span class="sidebar-brand">Order App</span>
+      <span class="sidebar-brand-sub">{{ session.get('usuario_nome', '') }}</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="/caixas" class="sidebar-item {% if pagina_ativa == 'caixas' %}ativo{% endif %}" title="Caixas">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+      </svg>
+      <div class="sidebar-item-text">
+        <span class="sidebar-item-category">Financeiro</span>
+        <span class="sidebar-item-name">Caixas</span>
+      </div>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <form method="POST" action="/logout">
+      <button type="submit" title="Sair">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        <span>Sair</span>
+      </button>
+    </form>
+  </div>
+</aside>
+
+<script>
+  (function(){
+    function toggleSidebar(){
+      var sb = document.querySelector('.sidebar');
+      var ov = document.getElementById('sidebar-overlay');
+      if(!sb || !ov) return;
+      var opening = !sb.classList.contains('aberta');
+      sb.classList.toggle('aberta');
+      ov.classList.toggle('visivel');
+      document.body.style.overflow = opening ? 'hidden' : '';
+    }
+    document.addEventListener('click', function(e){
+      var btn = e.target.closest && e.target.closest('.btn-hamburger');
+      if(btn){ e.preventDefault(); toggleSidebar(); }
+    }, true);
+    window.toggleSidebar = toggleSidebar;
+    window.fecharSidebar = function(){
+      var sb = document.querySelector('.sidebar');
+      var ov2 = document.getElementById('sidebar-overlay');
+      if(sb) sb.classList.remove('aberta');
+      if(ov2) ov2.classList.remove('visivel');
+      document.body.style.overflow = '';
+    };
+
+    // usa DOMContentLoaded para garantir que o overlay já existe no DOM
+    document.addEventListener('DOMContentLoaded', function(){
+      var ov = document.getElementById('sidebar-overlay');
+      if(ov){
+        ov.addEventListener('click', function(){
+          window.fecharSidebar();
+        });
+      }
+    });
+  })();
+</script>
