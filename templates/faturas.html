@@ -61,14 +61,6 @@
     .filtros-btn-aplicar { flex: 2; padding: 14px; background: #1976d2; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; transition: background .15s; }
     .filtros-btn-aplicar:active { background: #1565c0; }
 
-    .resumo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    @media (max-width: 560px) { .resumo-grid { grid-template-columns: 1fr; gap: 8px; } }
-    .resumo-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; }
-    .resumo-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .5px; }
-    .resumo-valor { font-size: 16px; font-weight: 800; color: #222; }
-    .resumo-card.aberto .resumo-valor { color: #e53935; }
-    .resumo-card.pago .resumo-valor { color: #2e7d32; }
-
     .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
     .card-header { padding: 14px 18px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
     .card-titulo { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .5px; }
@@ -193,21 +185,6 @@
     </div>
 
     <div class="conteudo" id="pagina-conteudo">
-      <div class="resumo-grid">
-        <div class="resumo-card">
-          <span class="resumo-label">Total</span>
-          <span class="resumo-valor">R$ {{ '%.2f'|format(total_geral)|replace('.',',') }}</span>
-        </div>
-        <div class="resumo-card pago">
-          <span class="resumo-label">Pago</span>
-          <span class="resumo-valor">R$ {{ '%.2f'|format(total_pago)|replace('.',',') }}</span>
-        </div>
-        <div class="resumo-card aberto">
-          <span class="resumo-label">Em aberto</span>
-          <span class="resumo-valor">R$ {{ '%.2f'|format(total_aberto)|replace('.',',') }}</span>
-        </div>
-      </div>
-
       <div class="card tabela-wrap">
         {% if faturas %}
         <div style="overflow-x:auto">

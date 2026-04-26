@@ -176,11 +176,6 @@
     </div>
 
     <div class="conteudo" id="pagina-conteudo">
-      <div class="card" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-        <span class="card-titulo">Total filtrado</span>
-        <span style="font-size:13px;font-weight:700;color:#222">R$ {{ '%.2f'|format(total)|replace('.',',') }}</span>
-      </div>
-
       <div class="card tabela-wrap">
         {% if caixas %}
         <div style="overflow-x:auto">
