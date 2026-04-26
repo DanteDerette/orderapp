@@ -1,234 +1,344 @@
 import os
+import secrets
+import uuid
 import sqlite3
 import logging
+import base64
 from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, abort, g
 
-app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-troque-em-producao')
-app.config['DEBUG'] = os.getenv('FLASK_DEBUG', '0') == '1'
+from crypto import derive_kek, generate_dek, wrap_dek, unwrap_dek, encrypt_field, decrypt_field
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'orderapp.db')
+
+# ── Secret Key ──────────────────────────────────────────────────────
+def _load_or_create_secret_key() -> str:
+    env = os.getenv("SECRET_KEY")
+    if env:
+        return env
+    key_file = os.path.join(os.path.dirname(__file__), ".secret_key")
+    if os.path.exists(key_file):
+        return open(key_file).read().strip()
+    key = secrets.token_hex(32)
+    with open(key_file, "w") as f:
+        f.write(key)
+    return key
+
+
+app = Flask(__name__)
+app.secret_key = _load_or_create_secret_key()
+app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "0") == "1"
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "orderapp.db")
+
+# DEK vive apenas em memória: {token_uuid: dek_bytes}
+# Se o servidor reiniciar, usuários precisam fazer login novamente.
+_dek_store: dict[str, bytes] = {}
 
 logging.basicConfig(level=logging.INFO)
 
 
-# ── DB ──────────────────────────────────────────────────────────
+# ── DB ──────────────────────────────────────────────────────────────
 
 def get_db():
-    if 'db' not in g:
+    if "db" not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
-        g.db.execute('PRAGMA journal_mode=WAL')
+        g.db.execute("PRAGMA journal_mode=WAL")
     return g.db
 
 
 @app.teardown_appcontext
 def close_db(exc):
-    db = g.pop('db', None)
-    if db is not None:
+    db = g.pop("db", None)
+    if db:
         db.close()
 
 
 def init_db():
     db = sqlite3.connect(DB_PATH)
-    db.execute('''
-        CREATE TABLE IF NOT EXISTS caixas (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            banco      TEXT NOT NULL,
-            data       TEXT,
-            valor      REAL NOT NULL DEFAULT 0,
-            criado_por TEXT,
-            criado_em  TEXT DEFAULT (datetime('now'))
-        )
-    ''')
-    db.execute('''
+
+    db.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
-            id    INTEGER PRIMARY KEY AUTOINCREMENT,
-            login TEXT UNIQUE NOT NULL,
-            senha TEXT NOT NULL,
-            nome  TEXT NOT NULL
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            login       TEXT UNIQUE NOT NULL,
+            nome        TEXT NOT NULL,
+            senha_hash  TEXT NOT NULL,
+            kek_salt    TEXT NOT NULL,
+            dek_wrapped TEXT NOT NULL
         )
-    ''')
-    from werkzeug.security import generate_password_hash
-    usuarios = [
-        ('dantederette', 'dante1946dante1946dante1946', 'Dante Derette'),
-        ('admin',        'admin123',                   'Administrador'),
-    ]
-    for login, senha, nome in usuarios:
-        db.execute(
-            'INSERT OR IGNORE INTO usuarios (login, senha, nome) VALUES (?, ?, ?)',
-            (login, generate_password_hash(senha), nome)
+    """)
+
+    # Campos sensíveis são armazenados cifrados; criado_em fica em texto
+    # para permitir ordenação sem precisar decifrar tudo.
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS caixas (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            banco_enc      TEXT NOT NULL DEFAULT '',
+            data_enc       TEXT,
+            valor_enc      TEXT NOT NULL DEFAULT '',
+            criado_por_enc TEXT,
+            criado_em      TEXT DEFAULT (datetime('now'))
         )
+    """)
+
+    if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
+        _seed_users(db)
+
     db.commit()
     db.close()
 
 
-# ── Auth ─────────────────────────────────────────────────────────
+def _seed_users(db):
+    from werkzeug.security import generate_password_hash
+
+    dek = generate_dek()
+
+    usuarios_iniciais = [
+        ("dantederette", "dante1946dante1946dante1946", "Dante Derette"),
+        ("admin",        "admin123",                   "Administrador"),
+    ]
+
+    for login, senha, nome in usuarios_iniciais:
+        kek_salt    = os.urandom(32)
+        kek         = derive_kek(senha, kek_salt)
+        dek_wrapped = wrap_dek(dek, kek)
+        senha_hash  = generate_password_hash(senha)
+        salt_b64    = base64.urlsafe_b64encode(kek_salt).decode("ascii")
+        db.execute(
+            "INSERT INTO usuarios (login, nome, senha_hash, kek_salt, dek_wrapped) VALUES (?,?,?,?,?)",
+            (login, nome, senha_hash, salt_b64, dek_wrapped),
+        )
+
+
+# ── Auth ─────────────────────────────────────────────────────────────
+
+def get_dek() -> bytes | None:
+    token = session.get("_dek_token")
+    return _dek_store.get(token) if token else None
+
 
 def login_necessario(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get('usuario_id'):
-            return redirect(url_for('login'))
+        if not session.get("usuario_id") or get_dek() is None:
+            session.clear()
+            return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
 
 
 def sanitize(val, max_len=200):
     if val is None:
-        return ''
+        return ""
     return str(val).strip()[:max_len]
 
 
-# ── Login ────────────────────────────────────────────────────────
+# ── Login ────────────────────────────────────────────────────────────
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
     erro = None
-    if request.method == 'POST':
-        login_val = sanitize(request.form.get('login'), 100)
-        senha_val = request.form.get('senha', '')
+    if request.method == "POST":
         from werkzeug.security import check_password_hash
-        db = get_db()
-        row = db.execute('SELECT * FROM usuarios WHERE login = ?', (login_val,)).fetchone()
-        if row and check_password_hash(row['senha'], senha_val):
-            session['usuario_id'] = row['id']
-            session['usuario_nome'] = row['nome']
-            return redirect(url_for('caixas'))
-        erro = 'Login ou senha inválidos.'
-    return render_template('login.html', erro=erro)
+
+        login_val = sanitize(request.form.get("login"), 100)
+        senha_val = request.form.get("senha", "")
+
+        db  = get_db()
+        row = db.execute("SELECT * FROM usuarios WHERE login = ?", (login_val,)).fetchone()
+
+        if row and check_password_hash(row["senha_hash"], senha_val):
+            try:
+                kek_salt = base64.urlsafe_b64decode(row["kek_salt"])
+                kek      = derive_kek(senha_val, kek_salt)
+                dek      = unwrap_dek(row["dek_wrapped"], kek)
+
+                token = str(uuid.uuid4())
+                _dek_store[token] = dek
+
+                session["usuario_id"]   = row["id"]
+                session["usuario_nome"] = row["nome"]
+                session["_dek_token"]   = token
+                return redirect(url_for("caixas"))
+            except Exception:
+                pass  # senha correta mas DEK corrompida — trata como falha
+
+        erro = "Login ou senha inválidos."
+    return render_template("login.html", erro=erro)
 
 
-@app.route('/logout', methods=['POST'])
+@app.route("/logout", methods=["POST"])
 def logout():
+    token = session.get("_dek_token")
+    if token:
+        _dek_store.pop(token, None)   # apaga DEK da memória imediatamente
     session.clear()
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    return redirect(url_for('caixas'))
+    return redirect(url_for("caixas"))
 
 
-# ── Caixas ───────────────────────────────────────────────────────
+# ── Helpers de criptografia ──────────────────────────────────────────
 
-@app.route('/caixas')
+def _decrypt_row(row, dek: bytes) -> dict:
+    """Decifra uma linha do banco em dicionário com tipos corretos."""
+    def safe(val):
+        if not val:
+            return ""
+        try:
+            return decrypt_field(val, dek)
+        except Exception:
+            return ""
+
+    data_str = safe(row["data_enc"])
+    data_obj = None
+    if data_str:
+        try:
+            data_obj = datetime.strptime(data_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    valor_str = safe(row["valor_enc"])
+    try:
+        valor_f = float(valor_str) if valor_str else 0.0
+    except ValueError:
+        valor_f = 0.0
+
+    return {
+        "id":         row["id"],
+        "banco":      safe(row["banco_enc"]),
+        "data":       data_obj,
+        "valor":      valor_f,
+        "criado_por": safe(row["criado_por_enc"]),
+        "criado_em":  row["criado_em"],
+    }
+
+
+# ── Caixas ───────────────────────────────────────────────────────────
+
+@app.route("/caixas")
 @login_necessario
 def caixas():
-    mes   = sanitize(request.args.get('mes'),   4)
-    ano   = sanitize(request.args.get('ano'),   4)
-    banco = sanitize(request.args.get('banco'), 150)
+    mes   = sanitize(request.args.get("mes"),   4)
+    ano   = sanitize(request.args.get("ano"),   4)
+    banco = sanitize(request.args.get("banco"), 150)
 
-    sql = 'SELECT id, banco, data, valor FROM caixas WHERE 1=1'
-    params = []
-    if mes:
-        sql += " AND strftime('%m', data) = ?"
-        params.append(mes.zfill(2))
-    if ano:
-        sql += " AND strftime('%Y', data) = ?"
-        params.append(ano)
-    if banco:
-        sql += ' AND banco = ?'
-        params.append(banco)
-    sql += ' ORDER BY data DESC'
+    dek  = get_dek()
+    db   = get_db()
+    rows = db.execute("SELECT * FROM caixas ORDER BY criado_em DESC").fetchall()
 
-    db = get_db()
-    registros = db.execute(sql, params).fetchall()
-    total = sum(float(r['valor'] or 0) for r in registros)
-    bancos = [r['banco'] for r in db.execute(
-        "SELECT DISTINCT banco FROM caixas WHERE banco IS NOT NULL AND banco != '' ORDER BY banco"
-    ).fetchall()]
+    # Decifra tudo em memória; filtra em Python (dados são criptografados no banco)
+    todos = [_decrypt_row(r, dek) for r in rows]
 
-    # converter Row para dict e parsear data
-    caixas_list = []
-    for r in registros:
-        d = dict(r)
-        if d['data']:
-            try:
-                d['data'] = datetime.strptime(d['data'], '%Y-%m-%d')
-            except Exception:
-                d['data'] = None
-        caixas_list.append(type('Obj', (), d)())
+    filtrados = []
+    for c in todos:
+        if mes   and (not c["data"] or c["data"].strftime("%m") != mes.zfill(2)):
+            continue
+        if ano   and (not c["data"] or c["data"].strftime("%Y") != ano):
+            continue
+        if banco and c["banco"] != banco:
+            continue
+        filtrados.append(c)
 
-    filtros = {'mes': mes, 'ano': ano, 'banco': banco}
-    return render_template('caixas.html', caixas=caixas_list, total=total, filtros=filtros, bancos=bancos)
+    filtrados.sort(key=lambda c: c["data"] or datetime.min, reverse=True)
+
+    total  = sum(c["valor"] for c in filtrados)
+    bancos = sorted({c["banco"] for c in todos if c["banco"]})
+
+    caixas_list = [type("Obj", (), c)() for c in filtrados]
+    return render_template(
+        "caixas.html",
+        caixas=caixas_list,
+        total=total,
+        filtros={"mes": mes, "ano": ano, "banco": banco},
+        bancos=bancos,
+    )
 
 
-@app.route('/caixas/novo', methods=['GET'])
+@app.route("/caixas/novo", methods=["GET"])
 @login_necessario
 def caixas_novo_form():
-    hoje = datetime.now().strftime('%Y-%m-%d')
-    return render_template('caixas_form.html', caixa=None, hoje=hoje, erro=None, form=None)
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    return render_template("caixas_form.html", caixa=None, hoje=hoje, erro=None, form=None)
 
 
-@app.route('/caixas/novo', methods=['POST'])
+@app.route("/caixas/novo", methods=["POST"])
 @login_necessario
 def caixas_novo():
-    banco  = sanitize(request.form.get('banco'), 150)
-    data   = sanitize(request.form.get('data'),  10)
+    dek    = get_dek()
+    banco  = sanitize(request.form.get("banco"), 150)
+    data   = sanitize(request.form.get("data"),  10)
     try:
-        valor = round(float(request.form.get('valor') or 0), 2)
+        valor = round(float(request.form.get("valor") or 0), 2)
     except ValueError:
         valor = 0.0
-    usuario = session.get('usuario_nome', '')
+    usuario = session.get("usuario_nome", "")
 
-    db = get_db()
+    db  = get_db()
     cur = db.execute(
-        'INSERT INTO caixas (banco, data, valor, criado_por) VALUES (?, ?, ?, ?)',
-        (banco, data or None, valor, usuario)
+        "INSERT INTO caixas (banco_enc, data_enc, valor_enc, criado_por_enc) VALUES (?,?,?,?)",
+        (
+            encrypt_field(banco,          dek),
+            encrypt_field(data,           dek) if data else None,
+            encrypt_field(str(valor),     dek),
+            encrypt_field(usuario,        dek),
+        ),
     )
     db.commit()
-    new_id = cur.lastrowid
-    return redirect(url_for('caixas_editar_form', caixa_id=new_id))
+    return redirect(url_for("caixas_editar_form", caixa_id=cur.lastrowid))
 
 
-@app.route('/caixas/<int:caixa_id>/editar', methods=['GET'])
+@app.route("/caixas/<int:caixa_id>/editar", methods=["GET"])
 @login_necessario
 def caixas_editar_form(caixa_id):
-    db = get_db()
-    row = db.execute('SELECT * FROM caixas WHERE id = ?', (caixa_id,)).fetchone()
+    dek = get_dek()
+    db  = get_db()
+    row = db.execute("SELECT * FROM caixas WHERE id = ?", (caixa_id,)).fetchone()
     if not row:
         abort(404)
-    caixa = dict(row)
-    if caixa['data']:
-        try:
-            caixa['data'] = datetime.strptime(caixa['data'], '%Y-%m-%d')
-        except Exception:
-            caixa['data'] = None
-    caixa_obj = type('Obj', (), caixa)()
-    hoje = datetime.now().strftime('%Y-%m-%d')
-    return render_template('caixas_form.html', caixa=caixa_obj, hoje=hoje, erro=None, form=None)
+    caixa_obj = type("Obj", (), _decrypt_row(row, dek))()
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    return render_template("caixas_form.html", caixa=caixa_obj, hoje=hoje, erro=None, form=None)
 
 
-@app.route('/caixas/<int:caixa_id>/editar', methods=['POST'])
+@app.route("/caixas/<int:caixa_id>/editar", methods=["POST"])
 @login_necessario
 def caixas_editar(caixa_id):
-    banco = sanitize(request.form.get('banco'), 150)
-    data  = sanitize(request.form.get('data'),  10)
+    dek   = get_dek()
+    banco = sanitize(request.form.get("banco"), 150)
+    data  = sanitize(request.form.get("data"),  10)
     try:
-        valor = round(float(request.form.get('valor') or 0), 2)
+        valor = round(float(request.form.get("valor") or 0), 2)
     except ValueError:
         valor = 0.0
+
     db = get_db()
     db.execute(
-        'UPDATE caixas SET banco=?, data=?, valor=? WHERE id=?',
-        (banco, data or None, valor, caixa_id)
+        "UPDATE caixas SET banco_enc=?, data_enc=?, valor_enc=? WHERE id=?",
+        (
+            encrypt_field(banco,      dek),
+            encrypt_field(data,       dek) if data else None,
+            encrypt_field(str(valor), dek),
+            caixa_id,
+        ),
     )
     db.commit()
-    return redirect(url_for('caixas_editar_form', caixa_id=caixa_id))
+    return redirect(url_for("caixas_editar_form", caixa_id=caixa_id))
 
 
-@app.route('/caixas/<int:caixa_id>/excluir', methods=['POST'])
+@app.route("/caixas/<int:caixa_id>/excluir", methods=["POST"])
 @login_necessario
 def caixas_excluir(caixa_id):
     db = get_db()
-    db.execute('DELETE FROM caixas WHERE id = ?', (caixa_id,))
+    db.execute("DELETE FROM caixas WHERE id = ?", (caixa_id,))
     db.commit()
-    return redirect(url_for('caixas'))
+    return redirect(url_for("caixas"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     init_db()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
