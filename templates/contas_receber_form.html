@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>{% if conta %}Editar Conta #{{ conta.id }}{% else %}Nova Conta a Receber{% endif %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; }
+
+    .main { margin-left: 10%; width: 90%; min-height: 100vh; display: flex; flex-direction: column; }
+    html.mob .main { margin-left: 0 !important; width: 100% !important; }
+
+    .main-header { background: #fff; border-bottom: 1px solid #eee; padding: 8px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 5; gap: 10px; }
+    .main-header-left { display: flex; align-items: center; gap: 10px; }
+    .btn-voltar { display: inline-flex; align-items: center; gap: 6px; background: #f0f0f0; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: #555; cursor: pointer; text-decoration: none; transition: background .15s; }
+    .btn-voltar:hover { background: #e0e0e0; }
+    .main-header-titulo { font-size: 13px; font-weight: 700; color: #222; }
+    .btn-hamburger { display: none; align-items: center; background: none; border: none; cursor: pointer; padding: 4px 6px; color: #1a1a1a; flex-shrink: 0; }
+    html.mob .btn-hamburger { display: flex !important; }
+
+    .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 18px; max-width: 680px; }
+    html.mob .conteudo { padding: 12px; gap: 12px; }
+
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    .card-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; }
+    .card-titulo { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .5px; }
+    .card-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+    .form-input { padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 9px; font-size: 14px; font-family: inherit; outline: none; background: #fff; color: #1a1a1a; transition: border-color .15s; }
+    .form-input:focus { border-color: #1a1a1a; }
+
+    .toggle-wrap { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+    .toggle-wrap input[type="checkbox"] { display: none; }
+    .toggle-track { width: 44px; height: 24px; background: #ddd; border-radius: 12px; position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0; }
+    .toggle-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    input[type="checkbox"]:checked + .toggle-track { background: #2e7d32; }
+    input[type="checkbox"]:checked + .toggle-track::after { left: 23px; }
+    .toggle-label { font-size: 14px; color: #333; cursor: pointer; }
+
+    .erro-msg { background: #fff0f0; border: 1.5px solid #fcc; border-radius: 9px; padding: 10px 14px; font-size: 13px; color: #c00; font-weight: 600; }
+
+    .acoes { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-salvar { flex: 1; padding: 13px 20px; background: #1a1a1a; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; transition: background .15s; white-space: nowrap; }
+    .btn-salvar:hover { background: #333; }
+    .btn-salvar:active { opacity: .85; }
+    .btn-excluir { padding: 13px 18px; background: none; color: #e53935; border: 1.5px solid #f5c6c6; border-radius: 10px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; transition: background .15s; white-space: nowrap; }
+    .btn-excluir:hover { background: #fff0f0; }
+
+    .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: none; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+    html.mob .sidebar-overlay { display: block; }
+    .sidebar-overlay.visivel { opacity: 1; pointer-events: auto; }
+  </style>
+  <script>(function(){var mob=window.innerWidth<1024||/Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent)||navigator.maxTouchPoints>1;if(mob)document.documentElement.classList.add('mob');})()</script>
+</head>
+<body>
+  {% set pagina_ativa = 'contas_receber' %}
+  {% include '_sidebar.html' %}
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main">
+    <div class="main-header">
+      <div class="main-header-left">
+        <button class="btn-hamburger" aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <a href="/contas-receber" class="btn-voltar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Voltar
+        </a>
+        <span class="main-header-titulo">
+          {% if conta %}Editar Conta #{{ conta.id }}{% else %}Nova Conta a Receber{% endif %}
+        </span>
+      </div>
+    </div>
+
+    <div class="conteudo">
+      {% if erro %}<div class="erro-msg">{{ erro }}</div>{% endif %}
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-titulo">Dados da Conta</span>
+        </div>
+        <div class="card-body">
+          {% set action = '/contas-receber/' ~ conta.id ~ '/editar' if conta else '/contas-receber/novo' %}
+          <form method="POST" action="{{ action }}" id="form-conta">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label">Descrição *</label>
+                <input class="form-input" type="text" name="descricao" required
+                  placeholder="Ex: Venda de produto, Serviço prestado…"
+                  value="{{ conta.descricao if conta else '' }}">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Cliente</label>
+                <input class="form-input" type="text" name="cliente"
+                  placeholder="Nome do cliente"
+                  value="{{ conta.cliente if conta else '' }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Vencimento *</label>
+                <input class="form-input" type="date" name="vencimento" required
+                  value="{{ conta.vencimento.strftime('%Y-%m-%d') if conta and conta.vencimento else hoje }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valor (R$) *</label>
+                <input class="form-input" type="number" name="valor" required step="0.01"
+                  placeholder="0,00"
+                  value="{{ '%.2f'|format(conta.valor|float) if conta else '' }}">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Status</label>
+                <div class="toggle-wrap">
+                  <input type="checkbox" name="recebido" id="toggle-recebido"
+                    {% if conta and conta.recebido %}checked{% endif %}>
+                  <label class="toggle-track" for="toggle-recebido"></label>
+                  <span class="toggle-label" id="toggle-label">{% if conta and conta.recebido %}Recebido{% else %}Pendente{% endif %}</span>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="acoes">
+        <button type="submit" form="form-conta" class="btn-salvar">
+          {% if conta %}Salvar Alterações{% else %}Criar Conta{% endif %}
+        </button>
+        {% if conta %}
+        <form method="POST" action="/contas-receber/{{ conta.id }}/excluir"
+              onsubmit="return confirm('Excluir esta conta permanentemente?')">
+          <button type="submit" class="btn-excluir">Excluir</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var cb = document.getElementById('toggle-recebido');
+    var lbl = document.getElementById('toggle-label');
+    if (cb) cb.addEventListener('change', function() {
+      lbl.textContent = cb.checked ? 'Recebido' : 'Pendente';
+    });
+  </script>
+</body>
+</html>
