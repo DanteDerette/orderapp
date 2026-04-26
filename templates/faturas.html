@@ -215,7 +215,7 @@
                   {% if f.pago %}<span class="badge-pago">Pago</span>
                   {% else %}<span class="badge-aberto">Em aberto</span>{% endif %}
                 </td>
-                <td><a class="btn-ver" href="/faturas/{{ f.id }}/editar">editar →</a></td>
+                <td><a class="btn-ver" href="/faturas/{{ f.id }}">ver →</a></td>
               </tr>
               {% endfor %}
               <tr class="tr-total">
@@ -239,7 +239,7 @@
             <span class="dia-header-total">R$ {{ dia.total|brl }}</span>
           </div>
           {% for f in dia.itens %}
-          <a class="fatura-card" href="/faturas/{{ f.id }}/editar">
+          <a class="fatura-card" href="/faturas/{{ f.id }}">
             <div class="fatura-card-cartao">{{ f.cartao }}</div>
             <div class="fatura-card-bottom">
               <span class="fatura-card-meta">

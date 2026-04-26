@@ -215,7 +215,7 @@
                   {% if c.recebido %}<span class="badge-recebido">Recebido</span>
                   {% else %}<span class="badge-pendente">Pendente</span>{% endif %}
                 </td>
-                <td><a class="btn-ver" href="/contas-receber/{{ c.id }}/editar">editar →</a></td>
+                <td><a class="btn-ver" href="/contas-receber/{{ c.id }}">ver →</a></td>
               </tr>
               {% endfor %}
               <tr class="tr-total">
@@ -239,7 +239,7 @@
             <span class="dia-header-total">R$ {{ dia.total|brl }}</span>
           </div>
           {% for c in dia.itens %}
-          <a class="conta-card" href="/contas-receber/{{ c.id }}/editar">
+          <a class="conta-card" href="/contas-receber/{{ c.id }}">
             <div class="conta-card-desc">{{ c.descricao }}</div>
             {% if c.cliente %}<div class="conta-card-cliente">{{ c.cliente }}</div>{% endif %}
             <div class="conta-card-bottom">

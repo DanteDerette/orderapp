@@ -333,45 +333,19 @@ def caixas_novo():
         ),
     )
     db.commit()
-    return redirect(url_for("caixas_editar_form", caixa_id=cur.lastrowid))
+    return redirect(url_for("caixas_ver", caixa_id=cur.lastrowid))
 
 
-@app.route("/caixas/<int:caixa_id>/editar", methods=["GET"])
+@app.route("/caixas/<int:caixa_id>")
 @login_necessario
-def caixas_editar_form(caixa_id):
+def caixas_ver(caixa_id):
     dek = get_dek()
     db  = get_db()
     row = db.execute("SELECT * FROM caixas WHERE id = ?", (caixa_id,)).fetchone()
     if not row:
         abort(404)
     caixa_obj = type("Obj", (), _decrypt_row(row, dek))()
-    hoje = datetime.now().strftime("%Y-%m-%d")
-    return render_template("caixas_form.html", caixa=caixa_obj, hoje=hoje, erro=None, form=None)
-
-
-@app.route("/caixas/<int:caixa_id>/editar", methods=["POST"])
-@login_necessario
-def caixas_editar(caixa_id):
-    dek   = get_dek()
-    banco = sanitize(request.form.get("banco"), 150)
-    data  = sanitize(request.form.get("data"),  10)
-    try:
-        valor = round(float(request.form.get("valor") or 0), 2)
-    except ValueError:
-        valor = 0.0
-
-    db = get_db()
-    db.execute(
-        "UPDATE caixas SET banco_enc=?, data_enc=?, valor_enc=? WHERE id=?",
-        (
-            encrypt_field(banco,      dek),
-            encrypt_field(data,       dek) if data else None,
-            encrypt_field(str(valor), dek),
-            caixa_id,
-        ),
-    )
-    db.commit()
-    return redirect(url_for("caixas_editar_form", caixa_id=caixa_id))
+    return render_template("caixas_form.html", caixa=caixa_obj)
 
 
 @app.route("/caixas/<int:caixa_id>/excluir", methods=["POST"])
@@ -504,47 +478,19 @@ def faturas_novo():
         ),
     )
     db.commit()
-    return redirect(url_for("faturas_editar_form", fatura_id=cur.lastrowid))
+    return redirect(url_for("faturas_ver", fatura_id=cur.lastrowid))
 
 
-@app.route("/faturas/<int:fatura_id>/editar", methods=["GET"])
+@app.route("/faturas/<int:fatura_id>")
 @login_necessario
-def faturas_editar_form(fatura_id):
+def faturas_ver(fatura_id):
     dek = get_dek()
     db  = get_db()
     row = db.execute("SELECT * FROM faturas WHERE id = ?", (fatura_id,)).fetchone()
     if not row:
         abort(404)
     fatura_obj = type("Obj", (), _decrypt_fatura(row, dek))()
-    hoje = datetime.now().strftime("%Y-%m-%d")
-    return render_template("faturas_form.html", fatura=fatura_obj, hoje=hoje, erro=None, form=None)
-
-
-@app.route("/faturas/<int:fatura_id>/editar", methods=["POST"])
-@login_necessario
-def faturas_editar(fatura_id):
-    dek    = get_dek()
-    cartao = sanitize(request.form.get("cartao"), 150)
-    venc   = sanitize(request.form.get("vencimento"), 10)
-    pago   = "1" if request.form.get("pago") else "0"
-    try:
-        valor = round(float(request.form.get("valor") or 0), 2)
-    except ValueError:
-        valor = 0.0
-
-    db = get_db()
-    db.execute(
-        "UPDATE faturas SET cartao_enc=?, vencimento_enc=?, valor_enc=?, pago_enc=? WHERE id=?",
-        (
-            encrypt_field(cartao,     dek),
-            encrypt_field(venc,       dek) if venc else None,
-            encrypt_field(str(valor), dek),
-            encrypt_field(pago,       dek),
-            fatura_id,
-        ),
-    )
-    db.commit()
-    return redirect(url_for("faturas_editar_form", fatura_id=fatura_id))
+    return render_template("faturas_form.html", fatura=fatura_obj)
 
 
 @app.route("/faturas/<int:fatura_id>/excluir", methods=["POST"])
@@ -677,49 +623,19 @@ def contas_receber_novo():
         ),
     )
     db.commit()
-    return redirect(url_for("contas_receber_editar_form", conta_id=cur.lastrowid))
+    return redirect(url_for("contas_receber_ver", conta_id=cur.lastrowid))
 
 
-@app.route("/contas-receber/<int:conta_id>/editar", methods=["GET"])
+@app.route("/contas-receber/<int:conta_id>")
 @login_necessario
-def contas_receber_editar_form(conta_id):
+def contas_receber_ver(conta_id):
     dek = get_dek()
     db  = get_db()
     row = db.execute("SELECT * FROM contas_receber WHERE id = ?", (conta_id,)).fetchone()
     if not row:
         abort(404)
     conta_obj = type("Obj", (), _decrypt_conta(row, dek))()
-    hoje = datetime.now().strftime("%Y-%m-%d")
-    return render_template("contas_receber_form.html", conta=conta_obj, hoje=hoje, erro=None)
-
-
-@app.route("/contas-receber/<int:conta_id>/editar", methods=["POST"])
-@login_necessario
-def contas_receber_editar(conta_id):
-    dek       = get_dek()
-    descricao = sanitize(request.form.get("descricao"), 200)
-    cliente   = sanitize(request.form.get("cliente"),   150)
-    venc      = sanitize(request.form.get("vencimento"), 10)
-    recebido  = "1" if request.form.get("recebido") else "0"
-    try:
-        valor = round(float(request.form.get("valor") or 0), 2)
-    except ValueError:
-        valor = 0.0
-
-    db = get_db()
-    db.execute(
-        "UPDATE contas_receber SET descricao_enc=?, cliente_enc=?, vencimento_enc=?, valor_enc=?, recebido_enc=? WHERE id=?",
-        (
-            encrypt_field(descricao,    dek),
-            encrypt_field(cliente,      dek),
-            encrypt_field(venc,         dek) if venc else None,
-            encrypt_field(str(valor),   dek),
-            encrypt_field(recebido,     dek),
-            conta_id,
-        ),
-    )
-    db.commit()
-    return redirect(url_for("contas_receber_editar_form", conta_id=conta_id))
+    return render_template("contas_receber_form.html", conta=conta_obj)
 
 
 @app.route("/contas-receber/<int:conta_id>/excluir", methods=["POST"])

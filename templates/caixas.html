@@ -201,7 +201,7 @@
                 <td style="white-space:nowrap;color:#888">{{ c.data.strftime('%d/%m/%Y') if c.data else '—' }}</td>
                 <td style="font-weight:600">{{ c.banco }}</td>
                 <td style="font-weight:700;white-space:nowrap">R$ {{ c.valor|brl }}</td>
-                <td><a class="btn-ver" href="/caixas/{{ c.id }}/editar">editar →</a></td>
+                <td><a class="btn-ver" href="/caixas/{{ c.id }}">ver →</a></td>
               </tr>
               {% endfor %}
               <tr class="tr-total">
@@ -225,7 +225,7 @@
             <span class="dia-header-total">R$ {{ dia.total|brl }}</span>
           </div>
           {% for c in dia.itens %}
-          <a class="caixa-card" href="/caixas/{{ c.id }}/editar">
+          <a class="caixa-card" href="/caixas/{{ c.id }}">
             <div class="caixa-card-banco">{{ c.banco }}</div>
             <div class="caixa-card-bottom">
               <span class="caixa-card-meta"></span>
