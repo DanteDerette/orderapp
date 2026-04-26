@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-import secrets
-import uuid
+import hashlib
 import sqlite3
 import logging
 import base64
 from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, abort, g
+from cryptography.fernet import Fernet
 
 from crypto import derive_kek, generate_dek, wrap_dek, unwrap_dek, encrypt_field, decrypt_field
 
@@ -33,11 +33,12 @@ app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "0") == "1"
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "orderapp.db")
 
-# DEK vive apenas em memória: {token_uuid: dek_bytes}
-# Se o servidor reiniciar, usuários precisam fazer login novamente.
-_dek_store: dict[str, bytes] = {}
-
 logging.basicConfig(level=logging.INFO)
+
+
+def _session_fernet() -> Fernet:
+    raw = hashlib.sha256(app.secret_key.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(raw))
 
 
 # ── DB ──────────────────────────────────────────────────────────────
@@ -128,8 +129,13 @@ def _seed_users(db):
 # ── Auth ─────────────────────────────────────────────────────────────
 
 def get_dek() -> bytes | None:
-    token = session.get("_dek_token")
-    return _dek_store.get(token) if token else None
+    enc = session.get("_dek_enc")
+    if not enc:
+        return None
+    try:
+        return _session_fernet().decrypt(enc.encode())
+    except Exception:
+        return None
 
 
 def login_necessario(f):
@@ -168,12 +174,9 @@ def login():
                 kek      = derive_kek(senha_val, kek_salt)
                 dek      = unwrap_dek(row["dek_wrapped"], kek)
 
-                token = str(uuid.uuid4())
-                _dek_store[token] = dek
-
                 session["usuario_id"]   = row["id"]
                 session["usuario_nome"] = row["nome"]
-                session["_dek_token"]   = token
+                session["_dek_enc"]     = _session_fernet().encrypt(dek).decode()
                 return redirect(url_for("caixas"))
             except Exception:
                 pass  # senha correta mas DEK corrompida — trata como falha
@@ -184,9 +187,6 @@ def login():
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    token = session.get("_dek_token")
-    if token:
-        _dek_store.pop(token, None)   # apaga DEK da memória imediatamente
     session.clear()
     return redirect(url_for("login"))
 
