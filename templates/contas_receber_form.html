@@ -79,42 +79,53 @@
       {% if conta %}
       <div class="card">
         <div class="card-header">
-          <span class="card-titulo">Registro</span>
+          <span class="card-titulo">Editar Conta</span>
           <span class="info-registro">criado em {{ conta.criado_em }}</span>
         </div>
         <div class="card-body">
-          <div class="leitura-grid">
-            <div class="campo-leitura full">
-              <span class="campo-label">Descrição</span>
-              <span class="campo-valor">{{ conta.descricao or '—' }}</span>
+          <form method="POST" action="/contas-receber/{{ conta.id }}/editar" id="form-conta">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label">Descrição *</label>
+                <input class="form-input" type="text" name="descricao" required value="{{ conta.descricao }}">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Cliente</label>
+                <input class="form-input" type="text" name="cliente" value="{{ conta.cliente }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Vencimento *</label>
+                <input class="form-input" type="date" name="vencimento" required
+                  value="{{ conta.vencimento.strftime('%Y-%m-%d') if conta.vencimento else '' }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valor (R$) *</label>
+                <input class="form-input" type="number" name="valor" required step="0.01" value="{{ conta.valor }}">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Status</label>
+                <div class="toggle-wrap">
+                  <input type="checkbox" name="recebido" id="toggle-recebido" {% if conta.recebido %}checked{% endif %}>
+                  <label class="toggle-track" for="toggle-recebido"></label>
+                  <span class="toggle-label" id="toggle-label">{% if conta.recebido %}Recebido{% else %}Pendente{% endif %}</span>
+                </div>
+              </div>
             </div>
-            <div class="campo-leitura full">
-              <span class="campo-label">Cliente</span>
-              <span class="campo-valor">{{ conta.cliente or '—' }}</span>
-            </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Vencimento</span>
-              <span class="campo-valor">{{ conta.vencimento.strftime('%d/%m/%Y') if conta.vencimento else '—' }}</span>
-            </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Valor</span>
-              <span class="campo-valor">R$ {{ conta.valor|brl }}</span>
-            </div>
-            <div class="campo-leitura full">
-              <span class="campo-label">Status</span>
-              <span class="campo-valor">
-                {% if conta.recebido %}<span class="badge-recebido">Recebido</span>{% else %}<span class="badge-pendente">Pendente</span>{% endif %}
-              </span>
-            </div>
-          </div>
+          </form>
         </div>
       </div>
       <div class="acoes">
+        <button type="submit" form="form-conta" class="btn-salvar">Salvar</button>
         <form method="POST" action="/contas-receber/{{ conta.id }}/excluir"
               onsubmit="return confirm('Excluir este registro permanentemente?')">
-          <button type="submit" class="btn-excluir">Excluir registro</button>
+          <button type="submit" class="btn-excluir">Excluir</button>
         </form>
       </div>
+      <script>
+        var cb = document.getElementById('toggle-recebido');
+        var lbl = document.getElementById('toggle-label');
+        if (cb) cb.addEventListener('change', function() { lbl.textContent = cb.checked ? 'Recebido' : 'Pendente'; });
+      </script>
 
       {% else %}
       <div class="card">

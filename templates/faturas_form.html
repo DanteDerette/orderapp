@@ -79,43 +79,49 @@
       {% if fatura %}
       <div class="card">
         <div class="card-header">
-          <span class="card-titulo">Registro</span>
+          <span class="card-titulo">Editar Fatura</span>
           <span class="info-registro">criado em {{ fatura.criado_em }}</span>
         </div>
         <div class="card-body">
-          <div class="leitura-grid">
-            <div class="campo-leitura full">
-              <span class="campo-label">Cartão</span>
-              <span class="campo-valor">{{ fatura.cartao or '—' }}</span>
+          <form method="POST" action="/faturas/{{ fatura.id }}/editar" id="form-fatura">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label">Cartão *</label>
+                <input class="form-input" type="text" name="cartao" required value="{{ fatura.cartao }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Vencimento *</label>
+                <input class="form-input" type="date" name="vencimento" required
+                  value="{{ fatura.vencimento.strftime('%Y-%m-%d') if fatura.vencimento else '' }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valor (R$) *</label>
+                <input class="form-input" type="number" name="valor" required step="0.01" value="{{ fatura.valor }}">
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Status</label>
+                <div class="toggle-wrap">
+                  <input type="checkbox" name="pago" id="toggle-pago" {% if fatura.pago %}checked{% endif %}>
+                  <label class="toggle-track" for="toggle-pago"></label>
+                  <span class="toggle-label" id="toggle-label">{% if fatura.pago %}Pago{% else %}Em aberto{% endif %}</span>
+                </div>
+              </div>
             </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Vencimento</span>
-              <span class="campo-valor">{{ fatura.vencimento.strftime('%d/%m/%Y') if fatura.vencimento else '—' }}</span>
-            </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Valor</span>
-              <span class="campo-valor">R$ {{ fatura.valor|brl }}</span>
-            </div>
-            <div class="campo-leitura full">
-              <span class="campo-label">Status</span>
-              <span class="campo-valor">
-                {% if fatura.pago %}<span class="badge-pago">Pago</span>{% else %}<span class="badge-aberto">Em aberto</span>{% endif %}
-              </span>
-            </div>
-          </div>
+          </form>
         </div>
       </div>
       <div class="acoes">
-        <form method="POST" action="/faturas/{{ fatura.id }}/toggle-pago" style="flex:1">
-          <button type="submit" class="btn-salvar" style="width:100%">
-            {% if fatura.pago %}Marcar como Em Aberto{% else %}Marcar como Pago{% endif %}
-          </button>
-        </form>
+        <button type="submit" form="form-fatura" class="btn-salvar">Salvar</button>
         <form method="POST" action="/faturas/{{ fatura.id }}/excluir"
               onsubmit="return confirm('Excluir este registro permanentemente?')">
           <button type="submit" class="btn-excluir">Excluir</button>
         </form>
       </div>
+      <script>
+        var cb = document.getElementById('toggle-pago');
+        var lbl = document.getElementById('toggle-label');
+        if (cb) cb.addEventListener('change', function() { lbl.textContent = cb.checked ? 'Pago' : 'Em aberto'; });
+      </script>
 
       {% else %}
       <div class="card">

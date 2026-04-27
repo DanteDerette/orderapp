@@ -78,38 +78,40 @@
 
     <div class="conteudo">
       {% if caixa %}
-      {# ── Modo leitura ── #}
       <div class="card">
         <div class="card-header">
-          <span class="card-titulo">Registro</span>
+          <span class="card-titulo">Editar Registro</span>
           <span class="info-registro">criado em {{ caixa.criado_em }}</span>
         </div>
         <div class="card-body">
-          <div class="leitura-grid">
-            <div class="campo-leitura full">
-              <span class="campo-label">Banco</span>
-              <span class="campo-valor">{{ caixa.banco or '—' }}</span>
+          <form method="POST" action="/caixas/{{ caixa.id }}/editar" id="form-caixa">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label">Banco *</label>
+                <input class="form-input" type="text" name="banco" required value="{{ caixa.banco }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Data *</label>
+                <input class="form-input" type="date" name="data" required
+                  value="{{ caixa.data.strftime('%Y-%m-%d') if caixa.data else '' }}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Valor (R$) *</label>
+                <input class="form-input" type="number" name="valor" required step="0.01" value="{{ caixa.valor }}">
+              </div>
             </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Data</span>
-              <span class="campo-valor">{{ caixa.data.strftime('%d/%m/%Y') if caixa.data else '—' }}</span>
-            </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Valor</span>
-              <span class="campo-valor">R$ {{ caixa.valor|brl }}</span>
-            </div>
-          </div>
+          </form>
         </div>
       </div>
       <div class="acoes">
+        <button type="submit" form="form-caixa" class="btn-salvar">Salvar</button>
         <form method="POST" action="/caixas/{{ caixa.id }}/excluir"
               onsubmit="return confirm('Excluir este registro permanentemente?')">
-          <button type="submit" class="btn-excluir">Excluir registro</button>
+          <button type="submit" class="btn-excluir">Excluir</button>
         </form>
       </div>
 
       {% else %}
-      {# ── Modo novo ── #}
       <div class="card">
         <div class="card-header"><span class="card-titulo">Novo Registro</span></div>
         <div class="card-body">
