@@ -119,12 +119,14 @@ def init_db():
         )
     """)
 
+    cols = {r[1] for r in db.execute("PRAGMA table_info(patrimonio)").fetchall()}
+    if "ativo_enc" not in cols:
+        db.execute("DROP TABLE IF EXISTS patrimonio")
     db.execute("""
         CREATE TABLE IF NOT EXISTS patrimonio (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo_enc       TEXT NOT NULL DEFAULT '',
-            descricao_enc  TEXT NOT NULL DEFAULT '',
-            valor_enc      TEXT NOT NULL DEFAULT '',
+            ativo_enc      TEXT NOT NULL DEFAULT '',
+            passivo_enc    TEXT NOT NULL DEFAULT '',
             data_enc       TEXT,
             criado_por_enc TEXT,
             criado_em      TEXT DEFAULT (datetime('now'))
@@ -738,51 +740,129 @@ def contas_receber_excluir(conta_id):
 
 
 # ── Patrimônio Líquido ───────────────────────────────────────────────
-# Calculado automaticamente a partir de caixas, faturas e contas a receber.
+
+def _decrypt_patrimonio(row, dek: bytes) -> dict:
+    def safe(val):
+        if not val:
+            return ""
+        try:
+            return decrypt_field(val, dek)
+        except Exception:
+            return ""
+
+    data_str = safe(row["data_enc"])
+    data_obj = None
+    if data_str:
+        try:
+            data_obj = datetime.strptime(data_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    def to_float(val):
+        try:
+            return float(safe(val)) if val else 0.0
+        except ValueError:
+            return 0.0
+
+    ativo   = to_float(row["ativo_enc"])
+    passivo = to_float(row["passivo_enc"])
+
+    return {
+        "id":        row["id"],
+        "ativo":     ativo,
+        "passivo":   passivo,
+        "pl":        ativo - passivo,
+        "data":      data_obj,
+        "criado_em": row["criado_em"],
+    }
+
 
 @app.route("/patrimonio")
 @login_necessario
 def patrimonio():
+    dek  = get_dek()
+    db   = get_db()
+    rows = db.execute("SELECT * FROM patrimonio ORDER BY criado_em DESC").fetchall()
+    registros = [type("Obj", (), _decrypt_patrimonio(r, dek))() for r in rows]
+    return render_template("patrimonio.html", registros=registros)
+
+
+@app.route("/patrimonio/novo", methods=["GET"])
+@login_necessario
+def patrimonio_novo_form():
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    return render_template("patrimonio_form.html", item=None, hoje=hoje)
+
+
+@app.route("/patrimonio/novo", methods=["POST"])
+@login_necessario
+def patrimonio_novo():
+    dek     = get_dek()
+    data    = sanitize(request.form.get("data"),    10)
+    usuario = session.get("usuario_nome", "")
+    try:
+        ativo   = round(float(request.form.get("ativo")   or 0), 2)
+        passivo = round(float(request.form.get("passivo") or 0), 2)
+    except ValueError:
+        ativo = passivo = 0.0
+
+    db  = get_db()
+    cur = db.execute(
+        "INSERT INTO patrimonio (ativo_enc, passivo_enc, data_enc, criado_por_enc) VALUES (?,?,?,?)",
+        (
+            encrypt_field(str(ativo),   dek),
+            encrypt_field(str(passivo), dek),
+            encrypt_field(data,         dek) if data else None,
+            encrypt_field(usuario,      dek),
+        ),
+    )
+    db.commit()
+    return redirect(url_for("patrimonio"))
+
+
+@app.route("/patrimonio/<int:item_id>")
+@login_necessario
+def patrimonio_ver(item_id):
     dek = get_dek()
     db  = get_db()
+    row = db.execute("SELECT * FROM patrimonio WHERE id = ?", (item_id,)).fetchone()
+    if not row:
+        abort(404)
+    item_obj = type("Obj", (), _decrypt_patrimonio(row, dek))()
+    return render_template("patrimonio_form.html", item=item_obj, hoje=None)
 
-    # Saldo das caixas agrupado por banco
-    caixa_rows = db.execute("SELECT * FROM caixas ORDER BY criado_em DESC").fetchall()
-    caixas_dec = [_decrypt_row(r, dek) for r in caixa_rows]
-    bancos: dict[str, float] = {}
-    for c in caixas_dec:
-        nome = c["banco"] or "(sem banco)"
-        bancos[nome] = bancos.get(nome, 0.0) + c["valor"]
-    total_caixas = sum(bancos.values())
 
-    # Faturas em aberto agrupadas por cartão
-    fatura_rows = db.execute("SELECT * FROM faturas ORDER BY criado_em DESC").fetchall()
-    faturas_dec = [_decrypt_fatura(r, dek) for r in fatura_rows]
-    cartoes: dict[str, float] = {}
-    for f in faturas_dec:
-        if not f["pago"]:
-            nome = f["cartao"] or "(sem cartão)"
-            cartoes[nome] = cartoes.get(nome, 0.0) + f["valor"]
-    total_faturas = sum(cartoes.values())
-
-    # Contas a receber — todas, independente do status
-    conta_rows = db.execute("SELECT * FROM contas_receber ORDER BY criado_em DESC").fetchall()
-    contas_dec = [_decrypt_conta(r, dek) for r in conta_rows]
-    contas_todas = [type("Obj", (), c)() for c in contas_dec]
-    total_receber = sum(c["valor"] for c in contas_dec if not c["recebido"])
-
-    patrimonio_liq = total_caixas + total_receber - total_faturas
-
-    return render_template(
-        "patrimonio.html",
-        bancos=bancos,
-        total_caixas=total_caixas,
-        cartoes=cartoes,
-        total_faturas=total_faturas,
-        contas_todas=contas_todas,
-        total_receber=total_receber,
-        patrimonio_liq=patrimonio_liq,
+@app.route("/patrimonio/<int:item_id>/editar", methods=["POST"])
+@login_necessario
+def patrimonio_editar(item_id):
+    dek  = get_dek()
+    data = sanitize(request.form.get("data"), 10)
+    try:
+        ativo   = round(float(request.form.get("ativo")   or 0), 2)
+        passivo = round(float(request.form.get("passivo") or 0), 2)
+    except ValueError:
+        ativo = passivo = 0.0
+    db = get_db()
+    db.execute(
+        "UPDATE patrimonio SET ativo_enc=?, passivo_enc=?, data_enc=? WHERE id=?",
+        (
+            encrypt_field(str(ativo),   dek),
+            encrypt_field(str(passivo), dek),
+            encrypt_field(data,         dek) if data else None,
+            item_id,
+        ),
     )
+    db.commit()
+    return redirect(url_for("patrimonio_ver", item_id=item_id))
+
+
+@app.route("/patrimonio/<int:item_id>/excluir", methods=["POST"])
+@login_necessario
+def patrimonio_excluir(item_id):
+    db = get_db()
+    db.execute("DELETE FROM patrimonio WHERE id = ?", (item_id,))
+    db.commit()
+    return redirect(url_for("patrimonio"))
 
 
 if __name__ == "__main__":

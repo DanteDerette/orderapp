@@ -10,39 +10,36 @@
     .main { margin-left: 10%; width: 90%; min-height: 100vh; display: flex; flex-direction: column; }
     html.mob .main { margin-left: 0 !important; width: 100% !important; }
     .main-header { background: #fff; border-bottom: 1px solid #eee; padding: 8px 20px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 5; }
-    .main-header-titulo { font-size: 13px; font-weight: 700; color: #222; }
+    .main-header-titulo { font-size: 13px; font-weight: 700; color: #222; flex: 1; }
     .btn-hamburger { display: none; align-items: center; background: none; border: none; cursor: pointer; padding: 4px 6px; color: #1a1a1a; flex-shrink: 0; }
     html.mob .btn-hamburger { display: flex !important; }
-    .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 20px; }
-    html.mob .conteudo { padding: 12px; gap: 14px; }
+    .btn-novo { display: inline-flex; align-items: center; gap: 6px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap; }
+    .btn-novo:hover { background: #333; }
+    .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+    html.mob .conteudo { padding: 12px; gap: 10px; }
 
-    .cards-resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-    @media (max-width: 860px) { .cards-resumo { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 480px) { .cards-resumo { grid-template-columns: 1fr; } }
-    .card-resumo { background: #fff; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.07); display: flex; flex-direction: column; gap: 6px; }
-    .card-resumo-label { font-size: 10px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: .4px; }
-    .card-resumo-valor { font-size: 22px; font-weight: 800; }
-    .card-resumo-sub { font-size: 11px; color: #aaa; }
-    .cor-caixa   { color: #1565c0; }
-    .cor-fatura  { color: #c62828; }
-    .cor-receber { color: #e65100; }
+    /* Tabela desktop */
+    .tabela-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: .3px; padding: 12px 20px; text-align: left; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+    tbody td { padding: 13px 20px; font-size: 13px; color: #333; border-bottom: 1px solid #f8f8f8; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #f9f9f9; cursor: pointer; }
+    td.num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
     .cor-pos { color: #2e7d32; }
     .cor-neg { color: #c62828; }
-    .card-pl { border-top: 3px solid #1a73e8; }
-    .card-pl .cor-pos { color: #1a73e8; }
+    .vazio { padding: 50px 20px; text-align: center; color: #ccc; font-size: 13px; }
 
-    .secao { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
-    .secao-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
-    .secao-titulo { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .5px; }
-    .secao-total  { font-size: 13px; font-weight: 700; }
-
-    table { width: 100%; border-collapse: collapse; }
-    th { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: .3px; padding: 10px 20px; text-align: left; border-bottom: 1px solid #f0f0f0; }
-    td { padding: 12px 20px; font-size: 13px; color: #333; border-bottom: 1px solid #f8f8f8; }
-    tr:last-child td { border-bottom: none; }
-    td.td-valor { text-align: right; font-weight: 600; }
-
-    .vazio { padding: 30px 20px; text-align: center; color: #ccc; font-size: 13px; }
+    /* Cards mobile */
+    .cards-mob { display: none; flex-direction: column; gap: 10px; }
+    html.mob .tabela-wrap { display: none; }
+    html.mob .cards-mob { display: flex; }
+    .card-mob { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; }
+    .card-mob-data { font-size: 11px; color: #999; font-weight: 600; }
+    .card-mob-row { display: flex; justify-content: space-between; align-items: center; }
+    .card-mob-label { font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: 700; letter-spacing: .3px; }
+    .card-mob-val { font-size: 14px; font-weight: 700; }
+    .divider { border: none; border-top: 1px solid #f0f0f0; }
 
     .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: none; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
     html.mob .sidebar-overlay { display: block; }
@@ -61,107 +58,63 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <span class="main-header-titulo">Patrimônio Líquido</span>
+      <a href="/patrimonio/novo" class="btn-novo">+ Novo</a>
     </div>
 
     <div class="conteudo">
 
-      <div class="cards-resumo">
-        <div class="card-resumo">
-          <span class="card-resumo-label">Saldo em Caixas</span>
-          <span class="card-resumo-valor cor-caixa">R$ {{ total_caixas|brl }}</span>
-          <span class="card-resumo-sub">{{ bancos|length }} banco(s)</span>
-        </div>
-        <div class="card-resumo">
-          <span class="card-resumo-label">Faturas em Aberto</span>
-          <span class="card-resumo-valor cor-fatura">R$ {{ total_faturas|brl }}</span>
-          <span class="card-resumo-sub">{{ cartoes|length }} cartão(ões)</span>
-        </div>
-        <div class="card-resumo">
-          <span class="card-resumo-label">A Receber</span>
-          <span class="card-resumo-valor cor-receber">R$ {{ total_receber|brl }}</span>
-          <span class="card-resumo-sub">{{ contas_todas|length }} conta(s)</span>
-        </div>
-        <div class="card-resumo card-pl">
-          <span class="card-resumo-label">Patrimônio Líquido</span>
-          <span class="card-resumo-valor {% if patrimonio_liq >= 0 %}cor-pos{% else %}cor-neg{% endif %}">
-            R$ {{ patrimonio_liq|brl }}
-          </span>
-          <span class="card-resumo-sub">Caixas + A Receber − Faturas</span>
-        </div>
-      </div>
-
-      <div class="secao">
-        <div class="secao-header">
-          <span class="secao-titulo">Saldo por Banco / Caixa</span>
-          <span class="secao-total {% if total_caixas >= 0 %}cor-pos{% else %}cor-neg{% endif %}">R$ {{ total_caixas|brl }}</span>
-        </div>
-        {% if bancos %}
+      <!-- Desktop -->
+      <div class="tabela-wrap">
+        {% if registros %}
         <table>
-          <thead><tr><th>Banco / Caixa</th><th style="text-align:right">Saldo Acumulado</th></tr></thead>
-          <tbody>
-            {% for nome, saldo in bancos.items() %}
+          <thead>
             <tr>
-              <td>{{ nome }}</td>
-              <td class="td-valor {% if saldo >= 0 %}cor-pos{% else %}cor-neg{% endif %}">R$ {{ saldo|brl }}</td>
+              <th>Data</th>
+              <th style="text-align:right">Ativo (R$)</th>
+              <th style="text-align:right">Passivo (R$)</th>
+              <th style="text-align:right">Patrimônio Líquido</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in registros %}
+            <tr onclick="location.href='/patrimonio/{{ r.id }}'">
+              <td>{{ r.data.strftime('%d/%m/%Y') if r.data else '—' }}</td>
+              <td class="num cor-pos">{{ r.ativo|brl }}</td>
+              <td class="num cor-neg">{{ r.passivo|brl }}</td>
+              <td class="num {% if r.pl >= 0 %}cor-pos{% else %}cor-neg{% endif %}">{{ r.pl|brl }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <div class="vazio">Nenhuma movimentação em caixas</div>
+        <div class="vazio">Nenhum registro ainda. Clique em "+ Novo" para começar.</div>
         {% endif %}
       </div>
 
-      <div class="secao">
-        <div class="secao-header">
-          <span class="secao-titulo">Faturas em Aberto</span>
-          <span class="secao-total cor-fatura">R$ {{ total_faturas|brl }}</span>
-        </div>
-        {% if cartoes %}
-        <table>
-          <thead><tr><th>Cartão</th><th style="text-align:right">Total em Aberto</th></tr></thead>
-          <tbody>
-            {% for nome, total in cartoes.items() %}
-            <tr>
-              <td>{{ nome }}</td>
-              <td class="td-valor cor-fatura">R$ {{ total|brl }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <!-- Mobile -->
+      <div class="cards-mob">
+        {% if registros %}
+          {% for r in registros %}
+          <div class="card-mob" onclick="location.href='/patrimonio/{{ r.id }}'">
+            <span class="card-mob-data">{{ r.data.strftime('%d/%m/%Y') if r.data else '—' }}</span>
+            <hr class="divider">
+            <div class="card-mob-row">
+              <span class="card-mob-label">Ativo</span>
+              <span class="card-mob-val cor-pos">R$ {{ r.ativo|brl }}</span>
+            </div>
+            <div class="card-mob-row">
+              <span class="card-mob-label">Passivo</span>
+              <span class="card-mob-val cor-neg">R$ {{ r.passivo|brl }}</span>
+            </div>
+            <hr class="divider">
+            <div class="card-mob-row">
+              <span class="card-mob-label">Patrimônio Líquido</span>
+              <span class="card-mob-val {% if r.pl >= 0 %}cor-pos{% else %}cor-neg{% endif %}">R$ {{ r.pl|brl }}</span>
+            </div>
+          </div>
+          {% endfor %}
         {% else %}
-        <div class="vazio">Nenhuma fatura em aberto</div>
-        {% endif %}
-      </div>
-
-      <div class="secao">
-        <div class="secao-header">
-          <span class="secao-titulo">Contas a Receber</span>
-          <span class="secao-total cor-receber">R$ {{ total_receber|brl }} pendente</span>
-        </div>
-        {% if contas_todas %}
-        <table>
-          <thead><tr><th>Descrição</th><th>Cliente</th><th>Vencimento</th><th>Status</th><th style="text-align:right">Valor</th></tr></thead>
-          <tbody>
-            {% for c in contas_todas %}
-            <tr>
-              <td>{{ c.descricao or '—' }}</td>
-              <td>{{ c.cliente or '—' }}</td>
-              <td>{{ c.vencimento.strftime('%d/%m/%Y') if c.vencimento else '—' }}</td>
-              <td>
-                {% if c.recebido %}
-                  <span style="display:inline-block;background:#e8f5e9;color:#2e7d32;border-radius:20px;font-size:10px;font-weight:700;padding:2px 8px">Recebido</span>
-                {% else %}
-                  <span style="display:inline-block;background:#fff3e0;color:#e65100;border-radius:20px;font-size:10px;font-weight:700;padding:2px 8px">Pendente</span>
-                {% endif %}
-              </td>
-              <td class="td-valor {% if not c.recebido %}cor-receber{% else %}cor-pos{% endif %}">R$ {{ c.valor|brl }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <div class="vazio">Nenhuma conta a receber cadastrada</div>
+        <div class="vazio">Nenhum registro ainda.</div>
         {% endif %}
       </div>
 

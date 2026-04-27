@@ -2,48 +2,36 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
-  <title>{% if item %}Registro #{{ item.id }}{% else %}Novo Registro{% endif %}</title>
+  <title>{% if item %}Editar Registro{% else %}Novo Registro{% endif %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; }
     .main { margin-left: 10%; width: 90%; min-height: 100vh; display: flex; flex-direction: column; }
     html.mob .main { margin-left: 0 !important; width: 100% !important; }
-    .main-header { background: #fff; border-bottom: 1px solid #eee; padding: 8px 20px; display: flex; align-items: center; position: sticky; top: 0; z-index: 5; gap: 10px; }
+    .main-header { background: #fff; border-bottom: 1px solid #eee; padding: 8px 20px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 5; }
     .main-header-left { display: flex; align-items: center; gap: 10px; }
     .btn-voltar { display: inline-flex; align-items: center; gap: 6px; background: #f0f0f0; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: #555; cursor: pointer; text-decoration: none; transition: background .15s; }
     .btn-voltar:hover { background: #e0e0e0; }
     .main-header-titulo { font-size: 13px; font-weight: 700; color: #222; }
     .btn-hamburger { display: none; align-items: center; background: none; border: none; cursor: pointer; padding: 4px 6px; color: #1a1a1a; flex-shrink: 0; }
     html.mob .btn-hamburger { display: flex !important; }
-    .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 18px; max-width: 680px; }
+    .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 18px; max-width: 500px; }
     html.mob .conteudo { padding: 12px; gap: 12px; }
     .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
     .card-header { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
     .card-titulo { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .5px; }
-    .card-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-    .campo-leitura { display: flex; flex-direction: column; gap: 4px; }
-    .campo-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .4px; }
-    .campo-valor { font-size: 15px; font-weight: 600; color: #1a1a1a; padding: 2px 0; }
-    .leitura-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    @media (max-width: 560px) { .leitura-grid { grid-template-columns: 1fr; } }
-    .leitura-grid .full { grid-column: 1 / -1; }
     .info-registro { font-size: 11px; color: #bbb; }
-    .badge-ativo   { display: inline-block; background: #e8f5e9; color: #2e7d32; border-radius: 20px; font-size: 11px; font-weight: 700; padding: 3px 10px; }
-    .badge-passivo { display: inline-block; background: #fce4ec; color: #b71c1c; border-radius: 20px; font-size: 11px; font-weight: 700; padding: 3px 10px; }
-    .valor-pos { color: #2e7d32; }
-    .valor-neg { color: #c62828; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+    .card-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
     .form-group { display: flex; flex-direction: column; gap: 5px; }
-    .form-group.full { grid-column: 1 / -1; }
     .form-label { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .4px; }
     .form-input { padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 9px; font-size: 14px; font-family: inherit; outline: none; background: #fff; color: #1a1a1a; transition: border-color .15s; }
     .form-input:focus { border-color: #1a1a1a; }
-    .tipo-wrap { display: flex; gap: 10px; padding: 4px 0; }
-    .tipo-btn { flex: 1; padding: 10px; border: 1.5px solid #e0e0e0; border-radius: 9px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; background: #fff; color: #888; transition: border-color .15s, background .15s, color .15s; text-align: center; }
-    .tipo-btn.ativo-sel { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; }
-    .tipo-btn.passivo-sel { border-color: #b71c1c; background: #fce4ec; color: #b71c1c; }
+    .pl-preview { display: flex; align-items: center; justify-content: space-between; background: #f5f5f5; border-radius: 9px; padding: 12px 14px; }
+    .pl-preview-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .3px; }
+    .pl-preview-valor { font-size: 18px; font-weight: 800; }
+    .cor-pos { color: #2e7d32; }
+    .cor-neg { color: #c62828; }
     .acoes { display: flex; gap: 10px; flex-wrap: wrap; }
     .btn-salvar { flex: 1; padding: 13px 20px; background: #1a1a1a; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; transition: background .15s; white-space: nowrap; }
     .btn-salvar:hover { background: #333; }
@@ -70,91 +58,73 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
           Voltar
         </a>
-        <span class="main-header-titulo">{% if item %}Registro #{{ item.id }}{% else %}Novo Registro{% endif %}</span>
+        <span class="main-header-titulo">{% if item %}Editar Registro{% else %}Novo Registro{% endif %}</span>
       </div>
     </div>
 
     <div class="conteudo">
-      {% if item %}
       <div class="card">
         <div class="card-header">
-          <span class="card-titulo">Registro</span>
-          <span class="info-registro">criado em {{ item.criado_em }}</span>
+          <span class="card-titulo">{% if item %}Patrimônio Líquido{% else %}Novo Registro{% endif %}</span>
+          {% if item %}<span class="info-registro">registrado em {{ item.criado_em }}</span>{% endif %}
         </div>
         <div class="card-body">
-          <div class="leitura-grid">
-            <div class="campo-leitura full">
-              <span class="campo-label">Tipo</span>
-              <span class="campo-valor">
-                {% if item.tipo == 'ativo' %}<span class="badge-ativo">Ativo</span>{% else %}<span class="badge-passivo">Passivo</span>{% endif %}
+          <form method="POST"
+                action="{% if item %}/patrimonio/{{ item.id }}/editar{% else %}/patrimonio/novo{% endif %}"
+                id="form-pl">
+            <div class="form-group">
+              <label class="form-label">Data *</label>
+              <input class="form-input" type="date" name="data" required
+                value="{% if item %}{{ item.data.strftime('%Y-%m-%d') if item.data else '' }}{% else %}{{ hoje }}{% endif %}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ativo (R$) *</label>
+              <input class="form-input" type="number" name="ativo" id="inp-ativo" required step="0.01" placeholder="0,00"
+                value="{% if item %}{{ item.ativo }}{% endif %}"
+                oninput="calcPL()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Passivo (R$) *</label>
+              <input class="form-input" type="number" name="passivo" id="inp-passivo" required step="0.01" placeholder="0,00"
+                value="{% if item %}{{ item.passivo }}{% endif %}"
+                oninput="calcPL()">
+            </div>
+            <div class="pl-preview">
+              <span class="pl-preview-label">Patrimônio Líquido</span>
+              <span class="pl-preview-valor" id="pl-resultado">
+                {% if item %}R$ {{ item.pl|brl }}{% else %}R$ 0,00{% endif %}
               </span>
-            </div>
-            <div class="campo-leitura full">
-              <span class="campo-label">Descrição</span>
-              <span class="campo-valor">{{ item.descricao or '—' }}</span>
-            </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Data</span>
-              <span class="campo-valor">{{ item.data.strftime('%d/%m/%Y') if item.data else '—' }}</span>
-            </div>
-            <div class="campo-leitura">
-              <span class="campo-label">Valor</span>
-              <span class="campo-valor {% if item.tipo == 'ativo' %}valor-pos{% else %}valor-neg{% endif %}">
-                {% if item.tipo == 'ativo' %}+{% else %}−{% endif %} R$ {{ item.valor|brl }}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="acoes">
-        <form method="POST" action="/patrimonio/{{ item.id }}/excluir"
-              onsubmit="return confirm('Excluir este registro permanentemente?')">
-          <button type="submit" class="btn-excluir">Excluir registro</button>
-        </form>
-      </div>
-
-      {% else %}
-      <div class="card">
-        <div class="card-header"><span class="card-titulo">Novo Registro</span></div>
-        <div class="card-body">
-          <form method="POST" action="/patrimonio/novo" id="form-patrimonio">
-            <input type="hidden" name="tipo" id="input-tipo" value="ativo">
-            <div class="form-grid">
-              <div class="form-group full">
-                <label class="form-label">Tipo *</label>
-                <div class="tipo-wrap">
-                  <button type="button" class="tipo-btn ativo-sel" id="btn-ativo" onclick="setTipo('ativo')">Ativo</button>
-                  <button type="button" class="tipo-btn" id="btn-passivo" onclick="setTipo('passivo')">Passivo</button>
-                </div>
-              </div>
-              <div class="form-group full">
-                <label class="form-label">Descrição *</label>
-                <input class="form-input" type="text" name="descricao" required placeholder="Ex: Imóvel, Investimento, Dívida…">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Data *</label>
-                <input class="form-input" type="date" name="data" required value="{{ hoje }}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Valor (R$) *</label>
-                <input class="form-input" type="number" name="valor" required step="0.01" placeholder="0,00">
-              </div>
             </div>
           </form>
         </div>
       </div>
       <div class="acoes">
-        <button type="submit" form="form-patrimonio" class="btn-salvar">Registrar</button>
+        <button type="submit" form="form-pl" class="btn-salvar">
+          {% if item %}Salvar{% else %}Registrar{% endif %}
+        </button>
+        {% if item %}
+        <form method="POST" action="/patrimonio/{{ item.id }}/excluir"
+              onsubmit="return confirm('Excluir este registro permanentemente?')">
+          <button type="submit" class="btn-excluir">Excluir</button>
+        </form>
+        {% endif %}
       </div>
-      <script>
-        function setTipo(t) {
-          document.getElementById('input-tipo').value = t;
-          document.getElementById('btn-ativo').className = 'tipo-btn' + (t === 'ativo' ? ' ativo-sel' : '');
-          document.getElementById('btn-passivo').className = 'tipo-btn' + (t === 'passivo' ? ' passivo-sel' : '');
-        }
-      </script>
-      {% endif %}
     </div>
   </div>
+
+  <script>
+    function fmt(n) {
+      return 'R$ ' + n.toFixed(2).replace('.', '#').replace(/\B(?=(\d{3})+(?!\d))/g, '.').replace('#', ',');
+    }
+    function calcPL() {
+      var a = parseFloat(document.getElementById('inp-ativo').value)   || 0;
+      var p = parseFloat(document.getElementById('inp-passivo').value) || 0;
+      var pl = a - p;
+      var el = document.getElementById('pl-resultado');
+      el.textContent = fmt(pl);
+      el.className = 'pl-preview-valor ' + (pl >= 0 ? 'cor-pos' : 'cor-neg');
+    }
+    calcPL();
+  </script>
 </body>
 </html>
