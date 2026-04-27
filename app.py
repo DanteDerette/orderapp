@@ -143,6 +143,14 @@ def init_db():
         )
     """)
 
+    # Migration: adiciona coluna posicao se ainda não existir
+    cols_tarefas = {r[1] for r in db.execute("PRAGMA table_info(tarefas)").fetchall()}
+    if "posicao" not in cols_tarefas:
+        db.execute("ALTER TABLE tarefas ADD COLUMN posicao INTEGER DEFAULT 0")
+        rows_ord = db.execute("SELECT id FROM tarefas ORDER BY criado_em ASC").fetchall()
+        for i, r in enumerate(rows_ord):
+            db.execute("UPDATE tarefas SET posicao = ? WHERE id = ?", (i, r[0]))
+
     if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         _seed_users(db)
 
@@ -928,9 +936,8 @@ def _decrypt_tarefa(row, dek: bytes) -> dict:
 def checklist():
     dek  = get_dek()
     db   = get_db()
-    rows = db.execute("SELECT * FROM tarefas ORDER BY criado_em ASC").fetchall()
+    rows = db.execute("SELECT * FROM tarefas ORDER BY posicao ASC, criado_em ASC").fetchall()
     tarefas_dec = [_decrypt_tarefa(r, dek) for r in rows]
-    # Pendentes primeiro, concluídas por último
     tarefas = [t for t in tarefas_dec if not t["feito"]] + \
               [t for t in tarefas_dec if t["feito"]]
     return render_template("checklist.html", tarefas=tarefas)
@@ -947,9 +954,10 @@ def checklist_novo():
         return jsonify(ok=False), 400
     usuario = session.get("usuario_nome", "")
     db  = get_db()
+    max_pos = db.execute("SELECT COALESCE(MAX(posicao), -1) FROM tarefas").fetchone()[0]
     cur = db.execute(
-        "INSERT INTO tarefas (texto_enc, feito_enc, criado_por_enc) VALUES (?,?,?)",
-        (encrypt_field(texto, dek), encrypt_field("0", dek), encrypt_field(usuario, dek)),
+        "INSERT INTO tarefas (texto_enc, feito_enc, criado_por_enc, posicao) VALUES (?,?,?,?)",
+        (encrypt_field(texto, dek), encrypt_field("0", dek), encrypt_field(usuario, dek), max_pos + 1),
     )
     db.commit()
     return jsonify(ok=True, id=cur.lastrowid, texto=texto)
@@ -993,6 +1001,39 @@ def checklist_limpar():
         db.execute("DELETE FROM tarefas WHERE id = ?", (i,))
     db.commit()
     return jsonify(ok=True, removidos=len(ids))
+
+
+@app.route("/checklist/<int:tid>/editar", methods=["POST"])
+@login_necessario
+def checklist_editar(tid):
+    from flask import jsonify
+    dek  = get_dek()
+    data = request.get_json(silent=True) or {}
+    texto = sanitize(data.get("texto", ""), 500).strip()
+    if not texto:
+        return jsonify(ok=False), 400
+    db  = get_db()
+    row = db.execute("SELECT id FROM tarefas WHERE id = ?", (tid,)).fetchone()
+    if not row:
+        abort(404)
+    db.execute("UPDATE tarefas SET texto_enc = ? WHERE id = ?", (encrypt_field(texto, dek), tid))
+    db.commit()
+    return jsonify(ok=True, texto=texto)
+
+
+@app.route("/checklist/reordenar", methods=["POST"])
+@login_necessario
+def checklist_reordenar():
+    from flask import jsonify
+    data = request.get_json(silent=True) or {}
+    ids  = data.get("ids", [])
+    if not isinstance(ids, list):
+        return jsonify(ok=False), 400
+    db = get_db()
+    for i, tid in enumerate(ids):
+        db.execute("UPDATE tarefas SET posicao = ? WHERE id = ?", (i, int(tid)))
+    db.commit()
+    return jsonify(ok=True)
 
 
 if __name__ == "__main__":

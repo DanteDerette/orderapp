@@ -21,9 +21,15 @@
     html.mob .lista { padding: 10px 12px; padding-bottom: 120px; }
 
     /* Item */
-    .item { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid #f0f0f0; animation: _fadein .18s ease; }
+    .item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #f0f0f0; animation: _fadein .18s ease; }
     .item:last-child { border-bottom: none; }
-    @keyframes _fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+    @keyframes _fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* Drag handle */
+    .item-drag { color: #ccc; cursor: grab; padding: 2px 0; flex-shrink: 0; touch-action: none; display: flex; align-items: center; user-select: none; -webkit-user-select: none; }
+    .item-drag:active { cursor: grabbing; color: #7c3aed; }
+    .sortable-ghost { opacity: 0.4; background: #ede9fe; border-radius: 10px; }
+    .sortable-drag { opacity: 0.9; box-shadow: 0 6px 20px rgba(124,58,237,.2); border-radius: 10px; background: #fff; }
 
     /* Checkbox custom */
     .item-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ccc; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color .15s, background .15s; background: #fff; }
@@ -31,19 +37,24 @@
     .item-check.feito svg { display: block; }
     .item-check svg { display: none; width: 12px; height: 12px; stroke: #fff; stroke-width: 3; fill: none; }
 
-    .item-texto { flex: 1; font-size: 15px; color: #222; line-height: 1.4; word-break: break-word; }
+    /* Texto */
+    .item-texto { flex: 1; font-size: 15px; color: #222; line-height: 1.4; word-break: break-word; cursor: pointer; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; transition: background .12s; }
+    .item-texto:hover { background: #f3e8ff; }
     .item-texto.feito { color: #bbb; text-decoration: line-through; }
+    .item-texto.feito:hover { background: #f5f5f5; }
 
-    .item-del { background: none; border: none; cursor: pointer; padding: 4px 6px; color: #ddd; flex-shrink: 0; border-radius: 6px; display: flex; align-items: center; transition: color .15s; }
-    .item-del:hover { color: #e53935; }
+    /* Input de edição inline */
+    .item-edit-input { flex: 1; border: none; border-bottom: 2px solid #7c3aed; outline: none; font-size: 15px; font-family: inherit; color: #222; background: transparent; padding: 2px 4px; margin: -2px -4px; }
 
     /* Input de nova tarefa */
     .item-input { flex: 1; border: none; outline: none; font-size: 15px; font-family: inherit; color: #222; background: transparent; }
     .item-input::placeholder { color: #ccc; }
 
+    .item-del { background: none; border: none; cursor: pointer; padding: 4px 6px; color: #ddd; flex-shrink: 0; border-radius: 6px; display: flex; align-items: center; transition: color .15s; }
+    .item-del:hover { color: #e53935; }
+
     /* FAB */
     .fab { position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #7c3aed; color: #fff; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 20px rgba(124,58,237,.35); cursor: pointer; z-index: 500; transition: transform .15s; -webkit-tap-highlight-color: transparent; }
-    html.mob .fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); }
     .fab:active { transform: scale(0.92); }
 
     .vazio { padding: 60px 20px; text-align: center; color: #ccc; font-size: 14px; }
@@ -72,6 +83,13 @@
       {% if tarefas %}
         {% for t in tarefas %}
         <div class="item" id="item-{{ t.id }}">
+          <div class="item-drag" title="Arrastar para reordenar">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+              <circle cx="4" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/>
+              <circle cx="4" cy="7" r="1.5"/><circle cx="10" cy="7" r="1.5"/>
+              <circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>
+            </svg>
+          </div>
           <div class="item-check {% if t.feito %}feito{% endif %}" onclick="toggle({{ t.id }}, this)">
             <svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg>
           </div>
@@ -91,15 +109,57 @@
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
   </button>
 
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <script>
-    // Mostra botão "Limpar concluídas" se houver alguma
+    // ── Utilidades ──────────────────────────────────────────────
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function dragHandleHTML() {
+      return '<div class="item-drag" title="Arrastar para reordenar">' +
+               '<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">' +
+                 '<circle cx="4" cy="3" r="1.5"/><circle cx="10" cy="3" r="1.5"/>' +
+                 '<circle cx="4" cy="7" r="1.5"/><circle cx="10" cy="7" r="1.5"/>' +
+                 '<circle cx="4" cy="11" r="1.5"/><circle cx="10" cy="11" r="1.5"/>' +
+               '</svg>' +
+             '</div>';
+    }
+
+    function itemHTML(id, texto, feito) {
+      return dragHandleHTML() +
+             '<div class="item-check' + (feito ? ' feito' : '') + '" onclick="toggle(' + id + ', this)">' +
+               '<svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg>' +
+             '</div>' +
+             '<span class="item-texto' + (feito ? ' feito' : '') + '">' + esc(texto) + '</span>' +
+             '<button class="item-del" onclick="excluir(' + id + ')" aria-label="Excluir">' +
+               '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+             '</button>';
+    }
+
+    // Retorna o primeiro item concluído da lista (âncora para inserir antes dele)
+    function primeiroFeito() {
+      return Array.from(document.querySelectorAll('#lista .item')).find(function(el) {
+        return el.querySelector('.item-check.feito');
+      }) || null;
+    }
+
+    // Insere div antes dos concluídos (ou no final da lista)
+    function inserirAntesDeFeitos(div) {
+      var lista = document.getElementById('lista');
+      var ancora = primeiroFeito();
+      if (ancora) lista.insertBefore(div, ancora);
+      else lista.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ── Botão Limpar concluídas ─────────────────────────────────
     function atualizarBtnLimpar() {
-      var concluidas = document.querySelectorAll('.item-check.feito').length;
-      document.getElementById('btn-limpar').style.display = concluidas > 0 ? '' : 'none';
+      var n = document.querySelectorAll('.item-check.feito').length;
+      document.getElementById('btn-limpar').style.display = n > 0 ? '' : 'none';
     }
     atualizarBtnLimpar();
 
-    // Esconde mensagem de vazio se há itens
     function atualizarVazio() {
       var v = document.getElementById('vazio');
       if (!v) return;
@@ -107,33 +167,31 @@
     }
     atualizarVazio();
 
+    // ── Nova tarefa ─────────────────────────────────────────────
     function novaItem() {
-      // Remove input anterior se existir
       var old = document.getElementById('novo-input-item');
       if (old) { old.querySelector('input').focus(); return; }
 
-      var lista = document.getElementById('lista');
       var div = document.createElement('div');
       div.className = 'item';
       div.id = 'novo-input-item';
       div.innerHTML =
+        dragHandleHTML() +
         '<div class="item-check" style="cursor:default;opacity:.4"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>' +
         '<input class="item-input" id="inp-novo" type="text" placeholder="Nova tarefa…" maxlength="500" autocomplete="off">' +
         '<button class="item-del" onclick="cancelarNovo()" aria-label="Cancelar">' +
           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
         '</button>';
 
-      lista.insertBefore(div, lista.firstChild);
+      inserirAntesDeFeitos(div);
 
-      // Esconde vazio
       var v = document.getElementById('vazio');
       if (v) v.style.display = 'none';
 
       var inp = document.getElementById('inp-novo');
       inp.focus();
-
       inp.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') salvarNovo();
+        if (e.key === 'Enter') { e.preventDefault(); salvarNovo(); }
         if (e.key === 'Escape') cancelarNovo();
       });
       inp.addEventListener('blur', function() {
@@ -158,69 +216,101 @@
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({texto: texto})
       })
-      .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
         if (!d.ok) return;
-        // Remove o input temporário
         cancelarNovo();
-        // Adiciona o item real no topo
-        var lista = document.getElementById('lista');
         var div = document.createElement('div');
         div.className = 'item';
         div.id = 'item-' + d.id;
         div.innerHTML = itemHTML(d.id, d.texto, false);
-        lista.insertBefore(div, lista.firstChild);
+        inserirAntesDeFeitos(div);
         atualizarVazio();
         atualizarBtnLimpar();
       });
     }
 
-    function itemHTML(id, texto, feito) {
-      return '<div class="item-check' + (feito ? ' feito' : '') + '" onclick="toggle(' + id + ', this)">' +
-               '<svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg>' +
-             '</div>' +
-             '<span class="item-texto' + (feito ? ' feito' : '') + '">' + esc(texto) + '</span>' +
-             '<button class="item-del" onclick="excluir(' + id + ')" aria-label="Excluir">' +
-               '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-             '</button>';
+    // ── Edição inline (toque no texto) ──────────────────────────
+    document.getElementById('lista').addEventListener('click', function(e) {
+      var span = e.target.closest('.item-texto');
+      if (!span) return;
+      var item = span.closest('.item[id^="item-"]');
+      if (!item) return;
+      var id = parseInt(item.id.replace('item-', ''));
+      editarTexto(id, span);
+    });
+
+    function editarTexto(id, span) {
+      if (span.classList.contains('_editando')) return;
+      span.classList.add('_editando');
+      var textoAtual = span.textContent;
+      var feito = span.classList.contains('feito');
+
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'item-edit-input' + (feito ? ' feito' : '');
+      inp.value = textoAtual;
+      span.replaceWith(inp);
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+
+      var salvo = false;
+      function restaurar(novoTexto) {
+        if (salvo) return;
+        salvo = true;
+        var novoSpan = document.createElement('span');
+        novoSpan.className = 'item-texto' + (feito ? ' feito' : '');
+        novoSpan.textContent = novoTexto;
+        inp.replaceWith(novoSpan);
+      }
+
+      function salvar() {
+        if (salvo) return;
+        var novo = inp.value.trim();
+        if (!novo || novo === textoAtual) { restaurar(textoAtual); return; }
+        salvo = true;
+        fetch('/checklist/' + id + '/editar', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({texto: novo})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) { restaurar(d.ok ? d.texto : textoAtual); });
+      }
+
+      inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); salvar(); }
+        if (e.key === 'Escape') restaurar(textoAtual);
+      });
+      inp.addEventListener('blur', function() { setTimeout(salvar, 150); });
     }
 
-    function esc(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-
+    // ── Toggle concluído ────────────────────────────────────────
     function toggle(id, chk) {
       fetch('/checklist/' + id + '/toggle', {method: 'POST'})
-        .then(function(r){ return r.json(); })
-        .then(function(d){
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
           if (!d.ok) return;
           var item = document.getElementById('item-' + id);
           var texto = item.querySelector('.item-texto');
           if (d.feito) {
             chk.classList.add('feito');
-            texto.classList.add('feito');
-            // Move para o final
+            if (texto) texto.classList.add('feito');
             item.parentNode.appendChild(item);
           } else {
             chk.classList.remove('feito');
-            texto.classList.remove('feito');
-            // Move para antes das concluídas
-            var lista = document.getElementById('lista');
-            var primeiro_feito = lista.querySelector('.item-check.feito');
-            if (primeiro_feito) {
-              lista.insertBefore(item, primeiro_feito.closest('.item'));
-            } else {
-              lista.insertBefore(item, lista.firstChild);
-            }
+            if (texto) texto.classList.remove('feito');
+            inserirAntesDeFeitos(item);
           }
           atualizarBtnLimpar();
         });
     }
 
+    // ── Excluir ─────────────────────────────────────────────────
     function excluir(id) {
       fetch('/checklist/' + id + '/excluir', {method: 'POST'})
-        .then(function(r){ return r.json(); })
-        .then(function(d){
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
           if (!d.ok) return;
           var el = document.getElementById('item-' + id);
           if (el) el.remove();
@@ -229,18 +319,40 @@
         });
     }
 
+    // ── Limpar concluídas ───────────────────────────────────────
     function limparConcluidas() {
       fetch('/checklist/limpar-concluidas', {method: 'POST'})
-        .then(function(r){ return r.json(); })
-        .then(function(d){
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
           if (!d.ok) return;
-          document.querySelectorAll('.item-check.feito').forEach(function(chk){
+          document.querySelectorAll('.item-check.feito').forEach(function(chk) {
             chk.closest('.item').remove();
           });
           atualizarVazio();
           atualizarBtnLimpar();
         });
     }
+
+    // ── Drag-and-drop (SortableJS) ──────────────────────────────
+    Sortable.create(document.getElementById('lista'), {
+      handle: '.item-drag',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      dragClass: 'sortable-drag',
+      filter: '.vazio, #novo-input-item',
+      preventOnFilter: false,
+      onEnd: function() {
+        var ids = Array.from(document.querySelectorAll('#lista .item[id^="item-"]'))
+          .map(function(el) { return parseInt(el.id.replace('item-', '')); })
+          .filter(function(id) { return !isNaN(id); });
+        if (!ids.length) return;
+        fetch('/checklist/reordenar', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ids: ids})
+        });
+      }
+    });
   </script>
 </body>
 </html>
