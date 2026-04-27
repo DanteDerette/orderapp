@@ -821,6 +821,71 @@ def patrimonio():
     return render_template("patrimonio.html", registros=registros)
 
 
+@app.route("/patrimonio/reconstruir", methods=["POST"])
+@login_necessario
+def patrimonio_reconstruir():
+    dek = get_dek()
+    db  = get_db()
+
+    # Coleta todos os eventos das três tabelas com seus timestamps originais
+    eventos = []
+    for r in db.execute("SELECT * FROM caixas ORDER BY criado_em").fetchall():
+        d = _decrypt_row(r, dek)
+        d["tabela"] = "caixas"
+        eventos.append(d)
+    for r in db.execute("SELECT * FROM faturas ORDER BY criado_em").fetchall():
+        d = _decrypt_fatura(r, dek)
+        d["tabela"] = "faturas"
+        eventos.append(d)
+    for r in db.execute("SELECT * FROM contas_receber ORDER BY criado_em").fetchall():
+        d = _decrypt_conta(r, dek)
+        d["tabela"] = "contas_receber"
+        eventos.append(d)
+
+    # Ordena todos os eventos cronologicamente
+    eventos.sort(key=lambda e: e["criado_em"])
+
+    # Limpa histórico atual e reconstrói desde o início
+    db.execute("DELETE FROM patrimonio")
+
+    acc_caixas  = []
+    acc_faturas = []
+    acc_contas  = []
+
+    origens = {
+        "caixas":         "Caixa (retroativo)",
+        "faturas":        "Fatura (retroativa)",
+        "contas_receber": "Conta a receber (retroativa)",
+    }
+
+    for ev in eventos:
+        tabela = ev["tabela"]
+        if tabela == "caixas":
+            acc_caixas.append(ev)
+        elif tabela == "faturas":
+            acc_faturas.append(ev)
+        else:
+            acc_contas.append(ev)
+
+        total_ativo   = sum(c["valor"] for c in acc_caixas)
+        total_ativo  += sum(c["valor"] for c in acc_contas if not c["recebido"])
+        total_passivo = sum(f["valor"] for f in acc_faturas if not f["pago"])
+
+        db.execute(
+            "INSERT INTO patrimonio (ativo_enc, passivo_enc, data_enc, criado_por_enc, criado_em) VALUES (?,?,?,?,?)",
+            (
+                encrypt_field(str(round(total_ativo,   2)), dek),
+                encrypt_field(str(round(total_passivo, 2)), dek),
+                encrypt_field(ev["criado_em"][:10],         dek),
+                encrypt_field(origens[tabela],              dek),
+                ev["criado_em"],  # preserva o timestamp original
+            ),
+        )
+
+    db.commit()
+    return redirect(url_for("patrimonio"))
+
+
 @app.route("/patrimonio/<int:item_id>/excluir", methods=["POST"])
 @login_necessario
 def patrimonio_excluir(item_id):

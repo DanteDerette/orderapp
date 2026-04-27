@@ -15,6 +15,8 @@
     html.mob .btn-hamburger { display: flex !important; }
     .btn-novo { display: inline-flex; align-items: center; gap: 6px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap; }
     .btn-novo:hover { background: #333; }
+    .btn-reconstruir { display: inline-flex; align-items: center; gap: 6px; background: none; color: #888; border: 1.5px solid #ddd; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s; }
+    .btn-reconstruir:hover { border-color: #1a73e8; color: #1a73e8; }
     .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
     html.mob .conteudo { padding: 12px; gap: 10px; }
 
@@ -58,6 +60,10 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <span class="main-header-titulo">Patrimônio Líquido</span>
+      <form method="POST" action="/patrimonio/reconstruir"
+            onsubmit="return confirm('Isso vai limpar o histórico atual e reconstruir retroativamente desde o início. Continuar?')">
+        <button type="submit" class="btn-reconstruir">↺ Reconstruir histórico</button>
+      </form>
     </div>
 
     <div class="conteudo">
