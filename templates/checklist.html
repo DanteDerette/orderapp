@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Checklist</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; }
+    .main { margin-left: 10%; width: 90%; min-height: 100vh; display: flex; flex-direction: column; }
+    html.mob .main { margin-left: 0 !important; width: 100% !important; }
+
+    .main-header { background: #fff; border-bottom: 1px solid #eee; padding: 8px 20px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 5; }
+    .main-header-titulo { font-size: 13px; font-weight: 700; color: #222; flex: 1; }
+    .btn-hamburger { display: none; align-items: center; background: none; border: none; cursor: pointer; padding: 4px 6px; color: #1a1a1a; flex-shrink: 0; }
+    html.mob .btn-hamburger { display: flex !important; }
+    .btn-limpar { background: none; border: none; font-size: 11px; color: #bbb; cursor: pointer; font-family: inherit; padding: 4px 8px; border-radius: 6px; }
+    .btn-limpar:hover { color: #e53935; background: #fff0f0; }
+
+    .lista { padding: 16px 20px; display: flex; flex-direction: column; gap: 0; max-width: 640px; padding-bottom: 120px; }
+    html.mob .lista { padding: 10px 12px; padding-bottom: 120px; }
+
+    /* Item */
+    .item { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid #f0f0f0; animation: _fadein .18s ease; }
+    .item:last-child { border-bottom: none; }
+    @keyframes _fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+    /* Checkbox custom */
+    .item-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ccc; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: border-color .15s, background .15s; background: #fff; }
+    .item-check.feito { border-color: #1a73e8; background: #1a73e8; }
+    .item-check.feito svg { display: block; }
+    .item-check svg { display: none; width: 12px; height: 12px; stroke: #fff; stroke-width: 3; fill: none; }
+
+    .item-texto { flex: 1; font-size: 15px; color: #222; line-height: 1.4; word-break: break-word; }
+    .item-texto.feito { color: #bbb; text-decoration: line-through; }
+
+    .item-del { background: none; border: none; cursor: pointer; padding: 4px 6px; color: #ddd; flex-shrink: 0; border-radius: 6px; display: flex; align-items: center; transition: color .15s; }
+    .item-del:hover { color: #e53935; }
+
+    /* Input de nova tarefa */
+    .item-input { flex: 1; border: none; outline: none; font-size: 15px; font-family: inherit; color: #222; background: transparent; }
+    .item-input::placeholder { color: #ccc; }
+
+    /* FAB */
+    .fab { position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #1a1a1a; color: #fff; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 20px rgba(0,0,0,.28); cursor: pointer; z-index: 500; transition: transform .15s; -webkit-tap-highlight-color: transparent; }
+    html.mob .fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); }
+    .fab:active { transform: scale(0.92); }
+
+    .vazio { padding: 60px 20px; text-align: center; color: #ccc; font-size: 14px; }
+
+    .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: none; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+    html.mob .sidebar-overlay { display: block; }
+    .sidebar-overlay.visivel { opacity: 1; pointer-events: auto; }
+  </style>
+  <script>(function(){var mob=window.innerWidth<1024||/Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent)||navigator.maxTouchPoints>1;if(mob)document.documentElement.classList.add('mob');})()</script>
+</head>
+<body>
+  {% set pagina_ativa = 'checklist' %}
+  {% include '_sidebar.html' %}
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main">
+    <div class="main-header">
+      <button class="btn-hamburger" aria-label="Menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="main-header-titulo">Checklist</span>
+      <button class="btn-limpar" id="btn-limpar" style="display:none" onclick="limparConcluidas()">Limpar concluídas</button>
+    </div>
+
+    <div class="lista" id="lista">
+      {% if tarefas %}
+        {% for t in tarefas %}
+        <div class="item" id="item-{{ t.id }}">
+          <div class="item-check {% if t.feito %}feito{% endif %}" onclick="toggle({{ t.id }}, this)">
+            <svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg>
+          </div>
+          <span class="item-texto {% if t.feito %}feito{% endif %}">{{ t.texto }}</span>
+          <button class="item-del" onclick="excluir({{ t.id }})" aria-label="Excluir">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="vazio" id="vazio">Nenhuma tarefa ainda. Toque em + para começar.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <button class="fab" onclick="novaItem()" aria-label="Nova tarefa">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <script>
+    // Mostra botão "Limpar concluídas" se houver alguma
+    function atualizarBtnLimpar() {
+      var concluidas = document.querySelectorAll('.item-check.feito').length;
+      document.getElementById('btn-limpar').style.display = concluidas > 0 ? '' : 'none';
+    }
+    atualizarBtnLimpar();
+
+    // Esconde mensagem de vazio se há itens
+    function atualizarVazio() {
+      var v = document.getElementById('vazio');
+      if (!v) return;
+      v.style.display = document.querySelectorAll('.item').length > 0 ? 'none' : '';
+    }
+    atualizarVazio();
+
+    function novaItem() {
+      // Remove input anterior se existir
+      var old = document.getElementById('novo-input-item');
+      if (old) { old.querySelector('input').focus(); return; }
+
+      var lista = document.getElementById('lista');
+      var div = document.createElement('div');
+      div.className = 'item';
+      div.id = 'novo-input-item';
+      div.innerHTML =
+        '<div class="item-check" style="cursor:default;opacity:.4"><svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg></div>' +
+        '<input class="item-input" id="inp-novo" type="text" placeholder="Nova tarefa…" maxlength="500" autocomplete="off">' +
+        '<button class="item-del" onclick="cancelarNovo()" aria-label="Cancelar">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>';
+
+      lista.insertBefore(div, lista.firstChild);
+
+      // Esconde vazio
+      var v = document.getElementById('vazio');
+      if (v) v.style.display = 'none';
+
+      var inp = document.getElementById('inp-novo');
+      inp.focus();
+
+      inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') salvarNovo();
+        if (e.key === 'Escape') cancelarNovo();
+      });
+      inp.addEventListener('blur', function() {
+        setTimeout(function() { if (document.getElementById('inp-novo')) salvarNovo(); }, 150);
+      });
+    }
+
+    function cancelarNovo() {
+      var el = document.getElementById('novo-input-item');
+      if (el) el.remove();
+      atualizarVazio();
+    }
+
+    function salvarNovo() {
+      var inp = document.getElementById('inp-novo');
+      if (!inp) return;
+      var texto = inp.value.trim();
+      if (!texto) { cancelarNovo(); return; }
+
+      fetch('/checklist/novo', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({texto: texto})
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) return;
+        // Remove o input temporário
+        cancelarNovo();
+        // Adiciona o item real no topo
+        var lista = document.getElementById('lista');
+        var div = document.createElement('div');
+        div.className = 'item';
+        div.id = 'item-' + d.id;
+        div.innerHTML = itemHTML(d.id, d.texto, false);
+        lista.insertBefore(div, lista.firstChild);
+        atualizarVazio();
+        atualizarBtnLimpar();
+      });
+    }
+
+    function itemHTML(id, texto, feito) {
+      return '<div class="item-check' + (feito ? ' feito' : '') + '" onclick="toggle(' + id + ', this)">' +
+               '<svg viewBox="0 0 12 12"><polyline points="1.5,6 4.5,9.5 10.5,2.5"/></svg>' +
+             '</div>' +
+             '<span class="item-texto' + (feito ? ' feito' : '') + '">' + esc(texto) + '</span>' +
+             '<button class="item-del" onclick="excluir(' + id + ')" aria-label="Excluir">' +
+               '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+             '</button>';
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function toggle(id, chk) {
+      fetch('/checklist/' + id + '/toggle', {method: 'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d.ok) return;
+          var item = document.getElementById('item-' + id);
+          var texto = item.querySelector('.item-texto');
+          if (d.feito) {
+            chk.classList.add('feito');
+            texto.classList.add('feito');
+            // Move para o final
+            item.parentNode.appendChild(item);
+          } else {
+            chk.classList.remove('feito');
+            texto.classList.remove('feito');
+            // Move para antes das concluídas
+            var lista = document.getElementById('lista');
+            var primeiro_feito = lista.querySelector('.item-check.feito');
+            if (primeiro_feito) {
+              lista.insertBefore(item, primeiro_feito.closest('.item'));
+            } else {
+              lista.insertBefore(item, lista.firstChild);
+            }
+          }
+          atualizarBtnLimpar();
+        });
+    }
+
+    function excluir(id) {
+      fetch('/checklist/' + id + '/excluir', {method: 'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d.ok) return;
+          var el = document.getElementById('item-' + id);
+          if (el) el.remove();
+          atualizarVazio();
+          atualizarBtnLimpar();
+        });
+    }
+
+    function limparConcluidas() {
+      fetch('/checklist/limpar-concluidas', {method: 'POST'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (!d.ok) return;
+          document.querySelectorAll('.item-check.feito').forEach(function(chk){
+            chk.closest('.item').remove();
+          });
+          atualizarVazio();
+          atualizarBtnLimpar();
+        });
+    }
+  </script>
+</body>
+</html>

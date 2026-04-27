@@ -133,6 +133,16 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS tarefas (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            texto_enc      TEXT NOT NULL DEFAULT '',
+            feito_enc      TEXT NOT NULL DEFAULT '',
+            criado_por_enc TEXT,
+            criado_em      TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         _seed_users(db)
 
@@ -893,6 +903,96 @@ def patrimonio_excluir(item_id):
     db.execute("DELETE FROM patrimonio WHERE id = ?", (item_id,))
     db.commit()
     return redirect(url_for("patrimonio"))
+
+
+# ── Checklist ────────────────────────────────────────────────────────
+
+def _decrypt_tarefa(row, dek: bytes) -> dict:
+    def safe(val):
+        if not val:
+            return ""
+        try:
+            return decrypt_field(val, dek)
+        except Exception:
+            return ""
+    return {
+        "id":        row["id"],
+        "texto":     safe(row["texto_enc"]),
+        "feito":     safe(row["feito_enc"]) == "1",
+        "criado_em": row["criado_em"],
+    }
+
+
+@app.route("/checklist")
+@login_necessario
+def checklist():
+    dek  = get_dek()
+    db   = get_db()
+    rows = db.execute("SELECT * FROM tarefas ORDER BY criado_em ASC").fetchall()
+    tarefas_dec = [_decrypt_tarefa(r, dek) for r in rows]
+    # Pendentes primeiro, concluídas por último
+    tarefas = [t for t in tarefas_dec if not t["feito"]] + \
+              [t for t in tarefas_dec if t["feito"]]
+    return render_template("checklist.html", tarefas=tarefas)
+
+
+@app.route("/checklist/novo", methods=["POST"])
+@login_necessario
+def checklist_novo():
+    from flask import jsonify
+    dek    = get_dek()
+    data   = request.get_json(silent=True) or {}
+    texto  = sanitize(data.get("texto", ""), 500).strip()
+    if not texto:
+        return jsonify(ok=False), 400
+    usuario = session.get("usuario_nome", "")
+    db  = get_db()
+    cur = db.execute(
+        "INSERT INTO tarefas (texto_enc, feito_enc, criado_por_enc) VALUES (?,?,?)",
+        (encrypt_field(texto, dek), encrypt_field("0", dek), encrypt_field(usuario, dek)),
+    )
+    db.commit()
+    return jsonify(ok=True, id=cur.lastrowid, texto=texto)
+
+
+@app.route("/checklist/<int:tid>/toggle", methods=["POST"])
+@login_necessario
+def checklist_toggle(tid):
+    from flask import jsonify
+    dek = get_dek()
+    db  = get_db()
+    row = db.execute("SELECT * FROM tarefas WHERE id = ?", (tid,)).fetchone()
+    if not row:
+        abort(404)
+    t      = _decrypt_tarefa(row, dek)
+    novo   = "0" if t["feito"] else "1"
+    db.execute("UPDATE tarefas SET feito_enc = ? WHERE id = ?", (encrypt_field(novo, dek), tid))
+    db.commit()
+    return jsonify(ok=True, feito=novo == "1")
+
+
+@app.route("/checklist/<int:tid>/excluir", methods=["POST"])
+@login_necessario
+def checklist_excluir(tid):
+    from flask import jsonify
+    db = get_db()
+    db.execute("DELETE FROM tarefas WHERE id = ?", (tid,))
+    db.commit()
+    return jsonify(ok=True)
+
+
+@app.route("/checklist/limpar-concluidas", methods=["POST"])
+@login_necessario
+def checklist_limpar():
+    from flask import jsonify
+    dek  = get_dek()
+    db   = get_db()
+    rows = db.execute("SELECT * FROM tarefas").fetchall()
+    ids  = [r["id"] for r in rows if _decrypt_tarefa(r, dek)["feito"]]
+    for i in ids:
+        db.execute("DELETE FROM tarefas WHERE id = ?", (i,))
+    db.commit()
+    return jsonify(ok=True, removidos=len(ids))
 
 
 if __name__ == "__main__":
