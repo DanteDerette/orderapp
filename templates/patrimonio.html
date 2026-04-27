@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Patrimônio Líquido</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { overflow-x: clip; max-width: 100%; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; }
+    .main { margin-left: 10%; width: 90%; min-height: 100vh; display: flex; flex-direction: column; }
+    html.mob .main { margin-left: 0 !important; width: 100% !important; }
+    .topo-fixo { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid #eee; }
+    .main-header { padding: 8px 14px; display: flex; align-items: center; gap: 10px; }
+    .main-header-titulo { font-size: 14px; font-weight: 700; color: #222; white-space: nowrap; }
+    .btn-hamburger { display: none; align-items: center; background: none; border: none; cursor: pointer; padding: 4px 6px; color: #1a1a1a; flex-shrink: 0; }
+    html.mob .btn-hamburger { display: flex !important; }
+    .conteudo { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+    html.mob .conteudo { padding: 8px; gap: 8px; }
+
+    .busca-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid #eee; }
+    .busca-inline { flex: 1; display: flex; align-items: center; gap: 7px; background: #f0f0f0; border-radius: 10px; padding: 8px 12px; }
+    .busca-inline input { flex: 1; min-width: 0; border: none; background: none; font-size: 13px; font-family: inherit; color: #333; outline: none; }
+    .busca-inline input::placeholder { color: #aaa; }
+    .busca-inline svg { flex-shrink: 0; color: #aaa; }
+    .filtrar-btn { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 14px; position: relative; border: none; border-radius: 10px; background: #1a1a1a; color: #fff; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
+    .filtrar-btn.ativo { background: #1565c0; }
+    .icon-btn-badge { display: inline-flex; align-items: center; justify-content: center; background: #1565c0; color: #fff; border-radius: 50%; width: 14px; height: 14px; font-size: 9px; font-weight: 800; position: absolute; top: 3px; right: 3px; pointer-events: none; }
+    .filtrar-btn.ativo .icon-btn-badge { background: #fff; color: #1565c0; }
+
+    .filtros-backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 2000; opacity: 0; transition: opacity .25s ease; pointer-events: none; }
+    .filtros-backdrop.ativo { opacity: 1; pointer-events: auto; }
+    .filtros-sheet { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 20px 20px 0 0; z-index: 2001; max-height: 85dvh; display: flex; flex-direction: column; transform: translateY(100%); transition: transform .32s cubic-bezier(.32,.72,0,1); box-shadow: 0 -4px 30px rgba(0,0,0,.15); }
+    @media (min-width: 768px) { .filtros-sheet { left: auto; right: 24px; bottom: 24px; border-radius: 16px; width: 400px; max-height: 75vh; } }
+    .filtros-sheet.aberto { transform: translateY(0); }
+    .filtros-handle { width: 40px; height: 4px; background: #ddd; border-radius: 2px; margin: 12px auto 0; flex-shrink: 0; }
+    .filtros-header { display: flex; align-items: center; gap: 10px; padding: 14px 20px 12px; flex-shrink: 0; border-bottom: 1px solid #f0f0f0; }
+    .filtros-fechar { background: none; border: none; cursor: pointer; padding: 4px; color: #666; display: flex; align-items: center; }
+    .filtros-titulo { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+    .filtros-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+    .filtros-sidebar { width: 128px; flex-shrink: 0; overflow-y: auto; background: #f7f7f7; border-right: 1px solid #ebebeb; }
+    .filtros-sidebar-item { position: relative; padding: 16px 10px 16px 16px; font-size: 13px; color: #666; line-height: 1.35; cursor: pointer; border-left: 3px solid transparent; transition: background .1s; }
+    .filtros-sidebar-item.ativo { background: #fff; color: #1976d2; font-weight: 700; border-left-color: #1976d2; }
+    .dot-ativo { display: none; width: 7px; height: 7px; background: #1976d2; border-radius: 50%; position: absolute; top: 10px; right: 8px; }
+    .filtros-sidebar-item.tem-filtro .dot-ativo { display: block; }
+    .filtros-panel { flex: 1; overflow-y: auto; }
+    .filtros-panel-section { display: none; }
+    .filtros-panel-section.ativo { display: block; }
+    .filtro-opcao { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; gap: 12px; border-bottom: 1px solid #f5f5f5; cursor: pointer; }
+    .filtro-opcao-label { font-size: 14px; color: #333; flex: 1; }
+    .filtro-opcao.selecionado .filtro-opcao-label { color: #1976d2; font-weight: 600; }
+    .filtro-opcao-check { width: 20px; height: 20px; flex-shrink: 0; border: 2px solid #ddd; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+    .filtro-opcao.selecionado .filtro-opcao-check { background: #1976d2; border-color: #1976d2; }
+    .filtro-opcao.selecionado .filtro-opcao-check::after { content: ''; display: block; width: 5px; height: 9px; border: 2px solid #fff; border-top: none; border-left: none; transform: rotate(45deg) translate(-1px,-2px); }
+    .filtros-footer { display: flex; align-items: center; gap: 10px; padding: 14px 20px 34px; border-top: 1px solid #f0f0f0; flex-shrink: 0; }
+    .filtros-btn-limpar { flex: 1; padding: 14px; background: none; color: #1976d2; border: none; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; text-align: center; }
+    .filtros-btn-aplicar { flex: 2; padding: 14px; background: #1976d2; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }
+
+    /* Summary cards */
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    @media (max-width: 560px) { .summary-grid { grid-template-columns: 1fr; gap: 8px; } }
+    .summary-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+    .summary-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .5px; }
+    .summary-valor { font-size: 18px; font-weight: 800; }
+    .summary-card.ativos   .summary-valor { color: #2e7d32; }
+    .summary-card.passivos .summary-valor { color: #c62828; }
+    .summary-card.liquido  .summary-valor { color: #1565c0; }
+    .summary-card.liquido.negativo .summary-valor { color: #c62828; }
+
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    .pat-table { width: 100%; border-collapse: collapse; }
+    .pat-table th { padding: 9px 14px; text-align: left; font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid #eee; white-space: nowrap; }
+    .pat-table td { padding: 11px 14px; font-size: 13px; color: #333; border-bottom: 1px solid #f5f5f5; vertical-align: middle; }
+    .pat-table tr:last-child td { border-bottom: none; }
+    .pat-table tr:hover td { background: #fafafa; }
+    .pat-table .tr-total td { background: #f7f7f7; border-top: 1px solid #e8e8e8; border-bottom: 2px solid #e0e0e0; }
+    .pat-table .tr-total .total-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: .4px; }
+    .pat-table .tr-total .total-val { font-size: 14px; font-weight: 800; white-space: nowrap; }
+    .pat-table .tr-total .total-val.pos { color: #2e7d32; }
+    .pat-table .tr-total .total-val.neg { color: #c62828; }
+    .btn-ver { font-size: 11px; color: #aaa; text-decoration: none; padding: 3px 8px; border-radius: 4px; transition: background .15s, color .15s; white-space: nowrap; }
+    .btn-ver:hover { background: #f0f0f0; color: #1a1a1a; }
+    .badge-ativo    { display: inline-block; background: #e8f5e9; color: #2e7d32; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+    .badge-passivo  { display: inline-block; background: #ffebee; color: #c62828; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+
+    .pat-cards { display: none; flex-direction: column; gap: 4px; }
+    .dia-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 4px 4px; }
+    .dia-header-data { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .4px; }
+    .dia-header-saldo { font-size: 13px; font-weight: 800; }
+    .dia-header-saldo.pos { color: #2e7d32; }
+    .dia-header-saldo.neg { color: #c62828; }
+    .pat-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; text-decoration: none; color: inherit; }
+    .pat-card-desc { font-size: 13px; font-weight: 700; color: #1a1a1a; }
+    .pat-card-bottom { display: flex; align-items: center; gap: 10px; }
+    .pat-card-meta { font-size: 12px; color: #999; flex: 1; }
+    .pat-card-valor { font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .pat-card-valor.ativo   { color: #2e7d32; }
+    .pat-card-valor.passivo { color: #c62828; }
+    .pat-card-ver { font-size: 11px; color: #888; border: 1px solid #ddd; border-radius: 6px; padding: 4px 9px; white-space: nowrap; }
+
+    @media (max-width: 760px) { .tabela-wrap { display: none !important; } .pat-cards { display: flex !important; } }
+    .vazio { padding: 40px 20px; text-align: center; color: #aaa; font-size: 13px; }
+    .vazio-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.07); padding: 48px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .vazio-card-icon { font-size: 36px; }
+    .vazio-card-titulo { font-size: 14px; font-weight: 700; color: #333; }
+    .vazio-card-sub { font-size: 12px; color: #aaa; }
+    .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: none; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+    html.mob .sidebar-overlay { display: block; }
+    .sidebar-overlay.visivel { opacity: 1; pointer-events: auto; }
+    .fab { position: fixed; bottom: max(28px, env(safe-area-inset-bottom, 0px) + 16px); right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #1a1a1a; color: #fff; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 20px rgba(0,0,0,.28); cursor: pointer; text-decoration: none; z-index: 500; transition: transform .15s, box-shadow .15s; -webkit-tap-highlight-color: transparent; }
+    .fab:hover { transform: scale(1.08); } .fab:active { transform: scale(0.93); }
+  </style>
+  <script>(function(){var mob=window.innerWidth<1024||/Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent)||navigator.maxTouchPoints>1;if(mob)document.documentElement.classList.add('mob');})()</script>
+</head>
+<body>
+  {% set pagina_ativa = 'patrimonio' %}
+  {% include '_sidebar.html' %}
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main">
+    <div class="topo-fixo">
+      <div class="main-header">
+        <button class="btn-hamburger" aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span class="main-header-titulo">Patrimônio Líquido</span>
+      </div>
+      {% set n_filtros = (1 if filtros.mes else 0) + (1 if filtros.ano else 0) + (1 if filtros.tipo else 0) %}
+      <div class="busca-bar">
+        <div class="busca-inline">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="busca-geral" type="search" placeholder="Buscar..." oninput="buscaGeral(this.value)" autocomplete="off">
+        </div>
+        <button class="filtrar-btn {% if n_filtros %}ativo{% endif %}" onclick="abrirFiltros()" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+          {% if n_filtros %}<span class="icon-btn-badge">{{ n_filtros }}</span>{% endif %}
+        </button>
+      </div>
+    </div>
+
+    <div class="filtros-backdrop" id="filtrosBackdrop" onclick="fecharFiltros()"></div>
+    <div class="filtros-sheet" id="filtrosSheet">
+      <div class="filtros-handle"></div>
+      <div class="filtros-header">
+        <button class="filtros-fechar" onclick="fecharFiltros()" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <span class="filtros-titulo">Filtros</span>
+      </div>
+      <div class="filtros-layout">
+        <div class="filtros-sidebar">
+          <div class="filtros-sidebar-item ativo" data-aba="mes"  onclick="trocarAba('mes')">Mês<span class="dot-ativo"></span></div>
+          <div class="filtros-sidebar-item"        data-aba="ano"  onclick="trocarAba('ano')">Ano<span class="dot-ativo"></span></div>
+          <div class="filtros-sidebar-item"        data-aba="tipo" onclick="trocarAba('tipo')">Tipo<span class="dot-ativo"></span></div>
+        </div>
+        <div class="filtros-panel">
+          <div class="filtros-panel-section ativo" id="panelMes">
+            <div class="filtro-opcao" data-cat="mes" data-val=""   onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Todos</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="01" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Janeiro</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="02" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Fevereiro</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="03" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Março</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="04" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Abril</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="05" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Maio</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="06" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Junho</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="07" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Julho</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="08" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Agosto</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="09" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Setembro</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="10" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Outubro</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="11" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Novembro</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="mes" data-val="12" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Dezembro</span><span class="filtro-opcao-check"></span></div>
+          </div>
+          <div class="filtros-panel-section" id="panelAno">
+            <div class="filtro-opcao" data-cat="ano" data-val="" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Todos</span><span class="filtro-opcao-check"></span></div>
+            {% for a in range(2024, 2030) %}
+            <div class="filtro-opcao" data-cat="ano" data-val="{{ a }}" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">{{ a }}</span><span class="filtro-opcao-check"></span></div>
+            {% endfor %}
+          </div>
+          <div class="filtros-panel-section" id="panelTipo">
+            <div class="filtro-opcao" data-cat="tipo" data-val=""        onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Todos</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="tipo" data-val="ativo"   onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Ativo (entrada)</span><span class="filtro-opcao-check"></span></div>
+            <div class="filtro-opcao" data-cat="tipo" data-val="passivo" onclick="selecionarOpcao(this)"><span class="filtro-opcao-label">Passivo (saída)</span><span class="filtro-opcao-check"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="filtros-footer">
+        <button class="filtros-btn-limpar"  type="button" onclick="limparFiltros()">Limpar filtros</button>
+        <button class="filtros-btn-aplicar" type="button" onclick="aplicarFiltros()">Ver resultados</button>
+      </div>
+    </div>
+
+    <div class="conteudo" id="pagina-conteudo">
+
+      {# ── Summary ── #}
+      <div class="summary-grid">
+        <div class="summary-card ativos">
+          <span class="summary-label">Total Ativos</span>
+          <span class="summary-valor">R$ {{ total_ativos|brl }}</span>
+        </div>
+        <div class="summary-card passivos">
+          <span class="summary-label">Total Passivos</span>
+          <span class="summary-valor">R$ {{ total_passivos|brl }}</span>
+        </div>
+        <div class="summary-card liquido {% if patrimonio_liq < 0 %}negativo{% endif %}">
+          <span class="summary-label">Patrimônio Líquido</span>
+          <span class="summary-valor">R$ {{ patrimonio_liq|brl }}</span>
+        </div>
+      </div>
+
+      <div class="card tabela-wrap">
+        {% if dias %}
+        <div style="overflow-x:auto">
+          <table class="pat-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th>Tipo</th>
+                <th>Valor</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for dia in dias %}
+              {% for p in dia.itens %}
+              <tr>
+                <td style="white-space:nowrap;color:#888">{{ p.data.strftime('%d/%m/%Y') if p.data else '—' }}</td>
+                <td style="font-weight:600">{{ p.descricao }}</td>
+                <td>
+                  {% if p.tipo == 'ativo' %}<span class="badge-ativo">Ativo</span>
+                  {% else %}<span class="badge-passivo">Passivo</span>{% endif %}
+                </td>
+                <td style="font-weight:700;white-space:nowrap;{% if p.tipo == 'ativo' %}color:#2e7d32{% else %}color:#c62828{% endif %}">
+                  {% if p.tipo == 'passivo' %}−{% endif %}R$ {{ p.valor|brl }}
+                </td>
+                <td><a class="btn-ver" href="/patrimonio/{{ p.id }}">ver →</a></td>
+              </tr>
+              {% endfor %}
+              <tr class="tr-total">
+                <td colspan="3"><span class="total-label">Saldo {{ dia.data.strftime('%d/%m/%Y') if dia.data else '—' }}</span></td>
+                <td colspan="2">
+                  <span class="total-val {% if dia.saldo >= 0 %}pos{% else %}neg{% endif %}">
+                    R$ {{ dia.saldo|brl }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="vazio">Nenhum registro encontrado com esses filtros.</div>
+        {% endif %}
+      </div>
+
+      <div class="pat-cards">
+        {% if dias %}
+          {% for dia in dias %}
+          <div class="dia-header">
+            <span class="dia-header-data">{{ dia.data.strftime('%d/%m/%Y') if dia.data else '—' }}</span>
+            <span class="dia-header-saldo {% if dia.saldo >= 0 %}pos{% else %}neg{% endif %}">R$ {{ dia.saldo|brl }}</span>
+          </div>
+          {% for p in dia.itens %}
+          <a class="pat-card" href="/patrimonio/{{ p.id }}">
+            <div class="pat-card-desc">{{ p.descricao }}</div>
+            <div class="pat-card-bottom">
+              <span class="pat-card-meta">
+                {% if p.tipo == 'ativo' %}<span class="badge-ativo">Ativo</span>{% else %}<span class="badge-passivo">Passivo</span>{% endif %}
+              </span>
+              <span class="pat-card-valor {{ p.tipo }}">
+                {% if p.tipo == 'passivo' %}−{% endif %}R$ {{ p.valor|brl }}
+              </span>
+              <span class="pat-card-ver">Ver</span>
+            </div>
+          </a>
+          {% endfor %}
+          {% endfor %}
+        {% else %}
+          <div class="vazio-card">
+            <div class="vazio-card-icon">📊</div>
+            <div class="vazio-card-titulo">Nenhum lançamento registrado</div>
+            <div class="vazio-card-sub">Toque em + para registrar um ativo ou passivo</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <a href="/patrimonio/novo" class="fab" aria-label="Novo lançamento">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </a>
+
+  <script>
+    var _filtroMes  = '{{ filtros.mes }}';
+    var _filtroAno  = '{{ filtros.ano }}';
+    var _filtroTipo = '{{ filtros.tipo }}';
+
+    function trocarAba(aba) {
+      document.querySelectorAll('.filtros-sidebar-item').forEach(function(el) { el.classList.toggle('ativo', el.dataset.aba === aba); });
+      var panelId = 'panel' + aba.charAt(0).toUpperCase() + aba.slice(1);
+      document.querySelectorAll('.filtros-panel-section').forEach(function(el) { el.classList.toggle('ativo', el.id === panelId); });
+    }
+    function selecionarOpcao(el) {
+      var panel = el.closest('.filtros-panel-section');
+      panel.querySelectorAll('.filtro-opcao').forEach(function(e) { e.classList.remove('selecionado'); });
+      el.classList.add('selecionado');
+      _atualizarDot(panel);
+    }
+    function _atualizarDot(panel) {
+      var abaMap = { panelMes: 'mes', panelAno: 'ano', panelTipo: 'tipo' };
+      var aba = abaMap[panel.id]; if (!aba) return;
+      var sel = panel.querySelector('.filtro-opcao.selecionado');
+      var val = sel ? sel.dataset.val : '';
+      var item = document.querySelector('.filtros-sidebar-item[data-aba="' + aba + '"]');
+      if (item) item.classList.toggle('tem-filtro', val !== '');
+    }
+    function _marcarOpcao(panelId, value) {
+      var panel = document.getElementById(panelId); if (!panel) return;
+      panel.querySelectorAll('.filtro-opcao').forEach(function(el) { el.classList.toggle('selecionado', el.dataset.val === value); });
+      _atualizarDot(panel);
+    }
+    function abrirFiltros() {
+      _marcarOpcao('panelMes',  _filtroMes);
+      _marcarOpcao('panelAno',  _filtroAno);
+      _marcarOpcao('panelTipo', _filtroTipo);
+      document.getElementById('filtrosSheet').classList.add('aberto');
+      document.getElementById('filtrosBackdrop').classList.add('ativo');
+      document.body.style.overflow = 'hidden';
+    }
+    function fecharFiltros() {
+      document.getElementById('filtrosSheet').classList.remove('aberto');
+      document.getElementById('filtrosBackdrop').classList.remove('ativo');
+      document.body.style.overflow = '';
+    }
+    function aplicarFiltros() {
+      var p = new URLSearchParams();
+      var mes  = (document.querySelector('#panelMes .filtro-opcao.selecionado')  || {}).dataset?.val || '';
+      var ano  = (document.querySelector('#panelAno .filtro-opcao.selecionado')  || {}).dataset?.val || '';
+      var tipo = (document.querySelector('#panelTipo .filtro-opcao.selecionado') || {}).dataset?.val || '';
+      if (mes)  p.set('mes',  mes);
+      if (ano)  p.set('ano',  ano);
+      if (tipo) p.set('tipo', tipo);
+      location.href = '/patrimonio' + (p.toString() ? '?' + p.toString() : '');
+    }
+    function limparFiltros() { location.href = '/patrimonio'; }
+    function buscaGeral(q) {
+      q = q.toLowerCase().trim();
+      document.querySelectorAll('.pat-table tbody tr:not(.tr-total)').forEach(function(tr) { tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
+      document.querySelectorAll('.pat-card').forEach(function(card) { card.style.display = (!q || card.textContent.toLowerCase().includes(q)) ? '' : 'none'; });
+    }
+  </script>
+</body>
+</html>

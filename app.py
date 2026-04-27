@@ -119,6 +119,18 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS patrimonio (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_enc       TEXT NOT NULL DEFAULT '',
+            descricao_enc  TEXT NOT NULL DEFAULT '',
+            valor_enc      TEXT NOT NULL DEFAULT '',
+            data_enc       TEXT,
+            criado_por_enc TEXT,
+            criado_em      TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         _seed_users(db)
 
@@ -645,6 +657,152 @@ def contas_receber_excluir(conta_id):
     db.execute("DELETE FROM contas_receber WHERE id = ?", (conta_id,))
     db.commit()
     return redirect(url_for("contas_receber"))
+
+
+# ── Patrimônio Líquido ───────────────────────────────────────────────
+
+def _decrypt_patrimonio(row, dek: bytes) -> dict:
+    def safe(val):
+        if not val:
+            return ""
+        try:
+            return decrypt_field(val, dek)
+        except Exception:
+            return ""
+
+    data_str = safe(row["data_enc"])
+    data_obj = None
+    if data_str:
+        try:
+            data_obj = datetime.strptime(data_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    valor_str = safe(row["valor_enc"])
+    try:
+        valor_f = float(valor_str) if valor_str else 0.0
+    except ValueError:
+        valor_f = 0.0
+
+    return {
+        "id":        row["id"],
+        "tipo":      safe(row["tipo_enc"]),       # "ativo" ou "passivo"
+        "descricao": safe(row["descricao_enc"]),
+        "valor":     valor_f,
+        "data":      data_obj,
+        "criado_em": row["criado_em"],
+    }
+
+
+@app.route("/patrimonio")
+@login_necessario
+def patrimonio():
+    mes  = sanitize(request.args.get("mes"),  4)
+    ano  = sanitize(request.args.get("ano"),  4)
+    tipo = sanitize(request.args.get("tipo"), 10)
+
+    dek  = get_dek()
+    db   = get_db()
+    rows = db.execute("SELECT * FROM patrimonio ORDER BY criado_em DESC").fetchall()
+
+    todos = [_decrypt_patrimonio(r, dek) for r in rows]
+
+    filtrados = []
+    for p in todos:
+        if mes  and (not p["data"] or p["data"].strftime("%m") != mes.zfill(2)):
+            continue
+        if ano  and (not p["data"] or p["data"].strftime("%Y") != ano):
+            continue
+        if tipo and p["tipo"] != tipo:
+            continue
+        filtrados.append(p)
+
+    filtrados.sort(key=lambda p: p["data"] or datetime.min, reverse=True)
+
+    total_ativos   = sum(p["valor"] for p in filtrados if p["tipo"] == "ativo")
+    total_passivos = sum(p["valor"] for p in filtrados if p["tipo"] == "passivo")
+    patrimonio_liq = total_ativos - total_passivos
+
+    from itertools import groupby
+    dias = []
+    for data_key, grupo in groupby(filtrados, key=lambda p: p["data"]):
+        itens = list(grupo)
+        ativos   = sum(p["valor"] for p in itens if p["tipo"] == "ativo")
+        passivos = sum(p["valor"] for p in itens if p["tipo"] == "passivo")
+        dias.append({
+            "data":    data_key,
+            "itens":   [type("Obj", (), p)() for p in itens],
+            "ativos":  ativos,
+            "passivos": passivos,
+            "saldo":   ativos - passivos,
+        })
+
+    return render_template(
+        "patrimonio.html",
+        dias=dias,
+        total_ativos=total_ativos,
+        total_passivos=total_passivos,
+        patrimonio_liq=patrimonio_liq,
+        filtros={"mes": mes, "ano": ano, "tipo": tipo},
+    )
+
+
+@app.route("/patrimonio/novo", methods=["GET"])
+@login_necessario
+def patrimonio_novo_form():
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    return render_template("patrimonio_form.html", item=None, hoje=hoje)
+
+
+@app.route("/patrimonio/novo", methods=["POST"])
+@login_necessario
+def patrimonio_novo():
+    dek       = get_dek()
+    tipo      = sanitize(request.form.get("tipo"),      10)
+    descricao = sanitize(request.form.get("descricao"), 200)
+    data      = sanitize(request.form.get("data"),      10)
+    usuario   = session.get("usuario_nome", "")
+    if tipo not in ("ativo", "passivo"):
+        tipo = "ativo"
+    try:
+        valor = round(float(request.form.get("valor") or 0), 2)
+    except ValueError:
+        valor = 0.0
+
+    db  = get_db()
+    cur = db.execute(
+        "INSERT INTO patrimonio (tipo_enc, descricao_enc, valor_enc, data_enc, criado_por_enc) VALUES (?,?,?,?,?)",
+        (
+            encrypt_field(tipo,        dek),
+            encrypt_field(descricao,   dek),
+            encrypt_field(str(valor),  dek),
+            encrypt_field(data,        dek) if data else None,
+            encrypt_field(usuario,     dek),
+        ),
+    )
+    db.commit()
+    return redirect(url_for("patrimonio_ver", item_id=cur.lastrowid))
+
+
+@app.route("/patrimonio/<int:item_id>")
+@login_necessario
+def patrimonio_ver(item_id):
+    dek = get_dek()
+    db  = get_db()
+    row = db.execute("SELECT * FROM patrimonio WHERE id = ?", (item_id,)).fetchone()
+    if not row:
+        abort(404)
+    item_obj = type("Obj", (), _decrypt_patrimonio(row, dek))()
+    return render_template("patrimonio_form.html", item=item_obj, hoje=None)
+
+
+@app.route("/patrimonio/<int:item_id>/excluir", methods=["POST"])
+@login_necessario
+def patrimonio_excluir(item_id):
+    db = get_db()
+    db.execute("DELETE FROM patrimonio WHERE id = ?", (item_id,))
+    db.commit()
+    return redirect(url_for("patrimonio"))
 
 
 if __name__ == "__main__":
