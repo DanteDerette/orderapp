@@ -106,9 +106,14 @@
         </div>
       </div>
       <div class="acoes">
+        <form method="POST" action="/faturas/{{ fatura.id }}/toggle-pago" style="flex:1">
+          <button type="submit" class="btn-salvar" style="width:100%">
+            {% if fatura.pago %}Marcar como Em Aberto{% else %}Marcar como Pago{% endif %}
+          </button>
+        </form>
         <form method="POST" action="/faturas/{{ fatura.id }}/excluir"
               onsubmit="return confirm('Excluir este registro permanentemente?')">
-          <button type="submit" class="btn-excluir">Excluir registro</button>
+          <button type="submit" class="btn-excluir">Excluir</button>
         </form>
       </div>
 

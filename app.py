@@ -505,6 +505,24 @@ def faturas_ver(fatura_id):
     return render_template("faturas_form.html", fatura=fatura_obj)
 
 
+@app.route("/faturas/<int:fatura_id>/toggle-pago", methods=["POST"])
+@login_necessario
+def faturas_toggle_pago(fatura_id):
+    dek = get_dek()
+    db  = get_db()
+    row = db.execute("SELECT * FROM faturas WHERE id = ?", (fatura_id,)).fetchone()
+    if not row:
+        abort(404)
+    atual = _decrypt_fatura(row, dek)
+    novo_pago = "0" if atual["pago"] else "1"
+    db.execute(
+        "UPDATE faturas SET pago_enc = ? WHERE id = ?",
+        (encrypt_field(novo_pago, dek), fatura_id),
+    )
+    db.commit()
+    return redirect(url_for("faturas_ver", fatura_id=fatura_id))
+
+
 @app.route("/faturas/<int:fatura_id>/excluir", methods=["POST"])
 @login_necessario
 def faturas_excluir(fatura_id):
