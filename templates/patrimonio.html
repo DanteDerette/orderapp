@@ -58,7 +58,6 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
       <span class="main-header-titulo">Patrimônio Líquido</span>
-      <a href="/patrimonio/novo" class="btn-novo">+ Novo</a>
     </div>
 
     <div class="conteudo">
@@ -69,7 +68,8 @@
         <table>
           <thead>
             <tr>
-              <th>Data</th>
+              <th>Data / Hora</th>
+              <th>Origem</th>
               <th style="text-align:right">Ativo (R$)</th>
               <th style="text-align:right">Passivo (R$)</th>
               <th style="text-align:right">Patrimônio Líquido</th>
@@ -77,8 +77,9 @@
           </thead>
           <tbody>
             {% for r in registros %}
-            <tr onclick="location.href='/patrimonio/{{ r.id }}'">
-              <td>{{ r.data.strftime('%d/%m/%Y') if r.data else '—' }}</td>
+            <tr>
+              <td style="white-space:nowrap;color:#999;font-size:12px">{{ r.criado_em }}</td>
+              <td style="font-size:12px;color:#666">{{ r.origem or '—' }}</td>
               <td class="num cor-pos">{{ r.ativo|brl }}</td>
               <td class="num cor-neg">{{ r.passivo|brl }}</td>
               <td class="num {% if r.pl >= 0 %}cor-pos{% else %}cor-neg{% endif %}">{{ r.pl|brl }}</td>
@@ -87,7 +88,7 @@
           </tbody>
         </table>
         {% else %}
-        <div class="vazio">Nenhum registro ainda. Clique em "+ Novo" para começar.</div>
+        <div class="vazio">Nenhuma movimentação registrada ainda.</div>
         {% endif %}
       </div>
 
@@ -95,8 +96,11 @@
       <div class="cards-mob">
         {% if registros %}
           {% for r in registros %}
-          <div class="card-mob" onclick="location.href='/patrimonio/{{ r.id }}'">
-            <span class="card-mob-data">{{ r.data.strftime('%d/%m/%Y') if r.data else '—' }}</span>
+          <div class="card-mob">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span class="card-mob-data">{{ r.criado_em }}</span>
+              <span style="font-size:10px;color:#aaa">{{ r.origem or '' }}</span>
+            </div>
             <hr class="divider">
             <div class="card-mob-row">
               <span class="card-mob-label">Ativo</span>
@@ -114,7 +118,7 @@
           </div>
           {% endfor %}
         {% else %}
-        <div class="vazio">Nenhum registro ainda.</div>
+        <div class="vazio">Nenhuma movimentação registrada ainda.</div>
         {% endif %}
       </div>
 

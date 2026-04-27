@@ -346,6 +346,7 @@ def caixas_novo():
             encrypt_field(usuario,        dek),
         ),
     )
+    _snapshot_patrimonio(db, dek, "Caixa adicionado")
     db.commit()
     return redirect(url_for("caixas_ver", caixa_id=cur.lastrowid))
 
@@ -382,6 +383,7 @@ def caixas_editar(caixa_id):
             caixa_id,
         ),
     )
+    _snapshot_patrimonio(db, dek, "Caixa editado")
     db.commit()
     return redirect(url_for("caixas_ver", caixa_id=caixa_id))
 
@@ -389,8 +391,10 @@ def caixas_editar(caixa_id):
 @app.route("/caixas/<int:caixa_id>/excluir", methods=["POST"])
 @login_necessario
 def caixas_excluir(caixa_id):
-    db = get_db()
+    dek = get_dek()
+    db  = get_db()
     db.execute("DELETE FROM caixas WHERE id = ?", (caixa_id,))
+    _snapshot_patrimonio(db, dek, "Caixa excluído")
     db.commit()
     return redirect(url_for("caixas"))
 
@@ -515,6 +519,7 @@ def faturas_novo():
             encrypt_field(usuario,      dek),
         ),
     )
+    _snapshot_patrimonio(db, dek, "Fatura adicionada")
     db.commit()
     return redirect(url_for("faturas_ver", fatura_id=cur.lastrowid))
 
@@ -553,6 +558,7 @@ def faturas_editar(fatura_id):
             fatura_id,
         ),
     )
+    _snapshot_patrimonio(db, dek, "Fatura editada")
     db.commit()
     return redirect(url_for("faturas_ver", fatura_id=fatura_id))
 
@@ -560,8 +566,10 @@ def faturas_editar(fatura_id):
 @app.route("/faturas/<int:fatura_id>/excluir", methods=["POST"])
 @login_necessario
 def faturas_excluir(fatura_id):
-    db = get_db()
+    dek = get_dek()
+    db  = get_db()
     db.execute("DELETE FROM faturas WHERE id = ?", (fatura_id,))
+    _snapshot_patrimonio(db, dek, "Fatura excluída")
     db.commit()
     return redirect(url_for("faturas"))
 
@@ -686,6 +694,7 @@ def contas_receber_novo():
             encrypt_field(usuario,      dek),
         ),
     )
+    _snapshot_patrimonio(db, dek, "Conta a receber adicionada")
     db.commit()
     return redirect(url_for("contas_receber_ver", conta_id=cur.lastrowid))
 
@@ -726,6 +735,7 @@ def contas_receber_editar(conta_id):
             conta_id,
         ),
     )
+    _snapshot_patrimonio(db, dek, "Conta a receber editada")
     db.commit()
     return redirect(url_for("contas_receber_ver", conta_id=conta_id))
 
@@ -733,13 +743,16 @@ def contas_receber_editar(conta_id):
 @app.route("/contas-receber/<int:conta_id>/excluir", methods=["POST"])
 @login_necessario
 def contas_receber_excluir(conta_id):
-    db = get_db()
+    dek = get_dek()
+    db  = get_db()
     db.execute("DELETE FROM contas_receber WHERE id = ?", (conta_id,))
+    _snapshot_patrimonio(db, dek, "Conta a receber excluída")
     db.commit()
     return redirect(url_for("contas_receber"))
 
 
 # ── Patrimônio Líquido ───────────────────────────────────────────────
+# Snapshot automático gerado a cada mutação em caixas, faturas ou contas_receber.
 
 def _decrypt_patrimonio(row, dek: bytes) -> dict:
     def safe(val):
@@ -750,17 +763,9 @@ def _decrypt_patrimonio(row, dek: bytes) -> dict:
         except Exception:
             return ""
 
-    data_str = safe(row["data_enc"])
-    data_obj = None
-    if data_str:
+    def to_float(v):
         try:
-            data_obj = datetime.strptime(data_str, "%Y-%m-%d")
-        except ValueError:
-            pass
-
-    def to_float(val):
-        try:
-            return float(safe(val)) if val else 0.0
+            return float(safe(v)) if v else 0.0
         except ValueError:
             return 0.0
 
@@ -772,9 +777,38 @@ def _decrypt_patrimonio(row, dek: bytes) -> dict:
         "ativo":     ativo,
         "passivo":   passivo,
         "pl":        ativo - passivo,
-        "data":      data_obj,
+        "origem":    safe(row["criado_por_enc"]),
         "criado_em": row["criado_em"],
     }
+
+
+def _snapshot_patrimonio(db, dek: bytes, origem: str):
+    caixa_rows  = db.execute("SELECT * FROM caixas").fetchall()
+    total_ativo = sum(_decrypt_row(r, dek)["valor"] for r in caixa_rows)
+
+    conta_rows = db.execute("SELECT * FROM contas_receber").fetchall()
+    for r in conta_rows:
+        c = _decrypt_conta(r, dek)
+        if not c["recebido"]:
+            total_ativo += c["valor"]
+
+    fatura_rows  = db.execute("SELECT * FROM faturas").fetchall()
+    total_passivo = 0.0
+    for r in fatura_rows:
+        f = _decrypt_fatura(r, dek)
+        if not f["pago"]:
+            total_passivo += f["valor"]
+
+    hoje = datetime.now().strftime("%Y-%m-%d")
+    db.execute(
+        "INSERT INTO patrimonio (ativo_enc, passivo_enc, data_enc, criado_por_enc) VALUES (?,?,?,?)",
+        (
+            encrypt_field(str(round(total_ativo,   2)), dek),
+            encrypt_field(str(round(total_passivo, 2)), dek),
+            encrypt_field(hoje,   dek),
+            encrypt_field(origem, dek),
+        ),
+    )
 
 
 @app.route("/patrimonio")
@@ -785,75 +819,6 @@ def patrimonio():
     rows = db.execute("SELECT * FROM patrimonio ORDER BY criado_em DESC").fetchall()
     registros = [type("Obj", (), _decrypt_patrimonio(r, dek))() for r in rows]
     return render_template("patrimonio.html", registros=registros)
-
-
-@app.route("/patrimonio/novo", methods=["GET"])
-@login_necessario
-def patrimonio_novo_form():
-    hoje = datetime.now().strftime("%Y-%m-%d")
-    return render_template("patrimonio_form.html", item=None, hoje=hoje)
-
-
-@app.route("/patrimonio/novo", methods=["POST"])
-@login_necessario
-def patrimonio_novo():
-    dek     = get_dek()
-    data    = sanitize(request.form.get("data"),    10)
-    usuario = session.get("usuario_nome", "")
-    try:
-        ativo   = round(float(request.form.get("ativo")   or 0), 2)
-        passivo = round(float(request.form.get("passivo") or 0), 2)
-    except ValueError:
-        ativo = passivo = 0.0
-
-    db  = get_db()
-    cur = db.execute(
-        "INSERT INTO patrimonio (ativo_enc, passivo_enc, data_enc, criado_por_enc) VALUES (?,?,?,?)",
-        (
-            encrypt_field(str(ativo),   dek),
-            encrypt_field(str(passivo), dek),
-            encrypt_field(data,         dek) if data else None,
-            encrypt_field(usuario,      dek),
-        ),
-    )
-    db.commit()
-    return redirect(url_for("patrimonio"))
-
-
-@app.route("/patrimonio/<int:item_id>")
-@login_necessario
-def patrimonio_ver(item_id):
-    dek = get_dek()
-    db  = get_db()
-    row = db.execute("SELECT * FROM patrimonio WHERE id = ?", (item_id,)).fetchone()
-    if not row:
-        abort(404)
-    item_obj = type("Obj", (), _decrypt_patrimonio(row, dek))()
-    return render_template("patrimonio_form.html", item=item_obj, hoje=None)
-
-
-@app.route("/patrimonio/<int:item_id>/editar", methods=["POST"])
-@login_necessario
-def patrimonio_editar(item_id):
-    dek  = get_dek()
-    data = sanitize(request.form.get("data"), 10)
-    try:
-        ativo   = round(float(request.form.get("ativo")   or 0), 2)
-        passivo = round(float(request.form.get("passivo") or 0), 2)
-    except ValueError:
-        ativo = passivo = 0.0
-    db = get_db()
-    db.execute(
-        "UPDATE patrimonio SET ativo_enc=?, passivo_enc=?, data_enc=? WHERE id=?",
-        (
-            encrypt_field(str(ativo),   dek),
-            encrypt_field(str(passivo), dek),
-            encrypt_field(data,         dek) if data else None,
-            item_id,
-        ),
-    )
-    db.commit()
-    return redirect(url_for("patrimonio_ver", item_id=item_id))
 
 
 @app.route("/patrimonio/<int:item_id>/excluir", methods=["POST"])
