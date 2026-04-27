@@ -140,5 +140,23 @@
       {% endif %}
     </div>
   </div>
+  <script>
+    (function(){
+      var form = document.getElementById('form-caixa');
+      if (!form) return;
+      form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var btn = document.querySelector('.btn-salvar');
+        if (!btn || btn.disabled) return;
+        btn.disabled = true;
+        var orig = btn.innerHTML;
+        btn.innerHTML = '<span style="display:inline-block;width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:_sp .6s linear infinite;vertical-align:middle;margin-right:6px"></span>Salvando…';
+        if (!document.getElementById('_spk')) { var s=document.createElement('style'); s.id='_spk'; s.textContent='@keyframes _sp{to{transform:rotate(360deg)}}'; document.head.appendChild(s); }
+        fetch(form.action, {method:'POST', body:new FormData(form)})
+          .then(function(){ btn.style.background='#2e7d32'; btn.style.border='none'; btn.innerHTML='✓ Salvo!'; setTimeout(function(){ history.back(); }, 800); })
+          .catch(function(){ btn.disabled=false; btn.innerHTML=orig; });
+      });
+    })();
+  </script>
 </body>
 </html>
