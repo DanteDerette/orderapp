@@ -79,7 +79,7 @@
         <div class="card-resumo">
           <span class="card-resumo-label">A Receber</span>
           <span class="card-resumo-valor cor-receber">R$ {{ total_receber|brl }}</span>
-          <span class="card-resumo-sub">{{ contas_pendentes|length }} conta(s)</span>
+          <span class="card-resumo-sub">{{ contas_todas|length }} conta(s)</span>
         </div>
         <div class="card-resumo card-pl">
           <span class="card-resumo-label">Patrimônio Líquido</span>
@@ -136,25 +136,32 @@
 
       <div class="secao">
         <div class="secao-header">
-          <span class="secao-titulo">Contas a Receber Pendentes</span>
-          <span class="secao-total cor-receber">R$ {{ total_receber|brl }}</span>
+          <span class="secao-titulo">Contas a Receber</span>
+          <span class="secao-total cor-receber">R$ {{ total_receber|brl }} pendente</span>
         </div>
-        {% if contas_pendentes %}
+        {% if contas_todas %}
         <table>
-          <thead><tr><th>Descrição</th><th>Cliente</th><th>Vencimento</th><th style="text-align:right">Valor</th></tr></thead>
+          <thead><tr><th>Descrição</th><th>Cliente</th><th>Vencimento</th><th>Status</th><th style="text-align:right">Valor</th></tr></thead>
           <tbody>
-            {% for c in contas_pendentes %}
+            {% for c in contas_todas %}
             <tr>
               <td>{{ c.descricao or '—' }}</td>
               <td>{{ c.cliente or '—' }}</td>
               <td>{{ c.vencimento.strftime('%d/%m/%Y') if c.vencimento else '—' }}</td>
-              <td class="td-valor cor-receber">R$ {{ c.valor|brl }}</td>
+              <td>
+                {% if c.recebido %}
+                  <span style="display:inline-block;background:#e8f5e9;color:#2e7d32;border-radius:20px;font-size:10px;font-weight:700;padding:2px 8px">Recebido</span>
+                {% else %}
+                  <span style="display:inline-block;background:#fff3e0;color:#e65100;border-radius:20px;font-size:10px;font-weight:700;padding:2px 8px">Pendente</span>
+                {% endif %}
+              </td>
+              <td class="td-valor {% if not c.recebido %}cor-receber{% else %}cor-pos{% endif %}">R$ {{ c.valor|brl }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
-        <div class="vazio">Nenhuma conta a receber pendente</div>
+        <div class="vazio">Nenhuma conta a receber cadastrada</div>
         {% endif %}
       </div>
 

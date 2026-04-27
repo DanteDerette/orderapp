@@ -765,10 +765,10 @@ def patrimonio():
             cartoes[nome] = cartoes.get(nome, 0.0) + f["valor"]
     total_faturas = sum(cartoes.values())
 
-    # Contas a receber pendentes
+    # Contas a receber — todas, independente do status
     conta_rows = db.execute("SELECT * FROM contas_receber ORDER BY criado_em DESC").fetchall()
     contas_dec = [_decrypt_conta(r, dek) for r in conta_rows]
-    contas_pendentes = [type("Obj", (), c)() for c in contas_dec if not c["recebido"]]
+    contas_todas = [type("Obj", (), c)() for c in contas_dec]
     total_receber = sum(c["valor"] for c in contas_dec if not c["recebido"])
 
     patrimonio_liq = total_caixas + total_receber - total_faturas
@@ -779,7 +779,7 @@ def patrimonio():
         total_caixas=total_caixas,
         cartoes=cartoes,
         total_faturas=total_faturas,
-        contas_pendentes=contas_pendentes,
+        contas_todas=contas_todas,
         total_receber=total_receber,
         patrimonio_liq=patrimonio_liq,
     )
