@@ -296,11 +296,9 @@
           if (d.feito) {
             chk.classList.add('feito');
             if (texto) texto.classList.add('feito');
-            item.parentNode.appendChild(item);
           } else {
             chk.classList.remove('feito');
             if (texto) texto.classList.remove('feito');
-            inserirAntesDeFeitos(item);
           }
           atualizarBtnLimpar();
         });

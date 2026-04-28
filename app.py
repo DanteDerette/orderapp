@@ -937,9 +937,7 @@ def checklist():
     dek  = get_dek()
     db   = get_db()
     rows = db.execute("SELECT * FROM tarefas ORDER BY posicao ASC, criado_em ASC").fetchall()
-    tarefas_dec = [_decrypt_tarefa(r, dek) for r in rows]
-    tarefas = [t for t in tarefas_dec if not t["feito"]] + \
-              [t for t in tarefas_dec if t["feito"]]
+    tarefas = [_decrypt_tarefa(r, dek) for r in rows]
     return render_template("checklist.html", tarefas=tarefas)
 
 
