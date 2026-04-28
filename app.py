@@ -36,6 +36,21 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "orderapp.db")
 logging.basicConfig(level=logging.INFO)
 
 
+@app.template_filter("fmt_data")
+def fmt_data(s):
+    if not s or len(s) < 10:
+        return s or ""
+    y, m, d = s[:10].split("-")
+    return f"{d}/{m}/{y}"
+
+
+@app.template_filter("fmt_hora")
+def fmt_hora(s):
+    if not s or len(s) < 16:
+        return ""
+    return s[11:16]
+
+
 @app.template_filter("brl")
 def brl_filter(value):
     try:
@@ -143,13 +158,26 @@ def init_db():
         )
     """)
 
-    # Migration: adiciona coluna posicao se ainda não existir
+    # Migrations para tarefas
     cols_tarefas = {r[1] for r in db.execute("PRAGMA table_info(tarefas)").fetchall()}
     if "posicao" not in cols_tarefas:
         db.execute("ALTER TABLE tarefas ADD COLUMN posicao INTEGER DEFAULT 0")
         rows_ord = db.execute("SELECT id FROM tarefas ORDER BY criado_em ASC").fetchall()
         for i, r in enumerate(rows_ord):
             db.execute("UPDATE tarefas SET posicao = ? WHERE id = ?", (i, r[0]))
+    if "tipo" not in cols_tarefas:
+        db.execute("ALTER TABLE tarefas ADD COLUMN tipo TEXT NOT NULL DEFAULT 'diario'")
+
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS historico (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_lista     TEXT NOT NULL DEFAULT 'diario',
+            evento         TEXT NOT NULL DEFAULT 'criado',
+            texto_enc      TEXT NOT NULL DEFAULT '',
+            criado_por_enc TEXT,
+            criado_em      TEXT DEFAULT (datetime('now'))
+        )
+    """)
 
     if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         _seed_users(db)
@@ -915,6 +943,14 @@ def patrimonio_excluir(item_id):
 
 # ── Checklist ────────────────────────────────────────────────────────
 
+def _log_historico(db, dek, tipo_lista, evento, texto):
+    usuario = session.get("usuario_nome", "")
+    db.execute(
+        "INSERT INTO historico (tipo_lista, evento, texto_enc, criado_por_enc) VALUES (?,?,?,?)",
+        (tipo_lista, evento, encrypt_field(texto or "", dek), encrypt_field(usuario, dek)),
+    )
+
+
 def _decrypt_tarefa(row, dek: bytes) -> dict:
     def safe(val):
         if not val:
@@ -928,6 +964,7 @@ def _decrypt_tarefa(row, dek: bytes) -> dict:
         "texto":     safe(row["texto_enc"]),
         "feito":     safe(row["feito_enc"]) == "1",
         "criado_em": row["criado_em"],
+        "tipo":      row["tipo"] if "tipo" in row.keys() else "diario",
     }
 
 
@@ -936,9 +973,14 @@ def _decrypt_tarefa(row, dek: bytes) -> dict:
 def checklist():
     dek  = get_dek()
     db   = get_db()
-    rows = db.execute("SELECT * FROM tarefas ORDER BY posicao ASC, criado_em ASC").fetchall()
+    tipo = request.args.get("tipo", "diario")
+    if tipo not in ("diario", "semanal", "mensal"):
+        tipo = "diario"
+    rows = db.execute(
+        "SELECT * FROM tarefas WHERE tipo = ? ORDER BY posicao ASC, criado_em ASC", (tipo,)
+    ).fetchall()
     tarefas = [_decrypt_tarefa(r, dek) for r in rows]
-    return render_template("checklist.html", tarefas=tarefas)
+    return render_template("checklist.html", tarefas=tarefas, tipo_ativo=tipo)
 
 
 @app.route("/checklist/novo", methods=["POST"])
@@ -950,13 +992,17 @@ def checklist_novo():
     texto  = sanitize(data.get("texto", ""), 500).strip()
     if not texto:
         return jsonify(ok=False), 400
+    tipo = data.get("tipo", "diario")
+    if tipo not in ("diario", "semanal", "mensal"):
+        tipo = "diario"
     usuario = session.get("usuario_nome", "")
     db  = get_db()
-    max_pos = db.execute("SELECT COALESCE(MAX(posicao), -1) FROM tarefas").fetchone()[0]
+    max_pos = db.execute("SELECT COALESCE(MAX(posicao), -1) FROM tarefas WHERE tipo = ?", (tipo,)).fetchone()[0]
     cur = db.execute(
-        "INSERT INTO tarefas (texto_enc, feito_enc, criado_por_enc, posicao) VALUES (?,?,?,?)",
-        (encrypt_field(texto, dek), encrypt_field("0", dek), encrypt_field(usuario, dek), max_pos + 1),
+        "INSERT INTO tarefas (texto_enc, feito_enc, criado_por_enc, posicao, tipo) VALUES (?,?,?,?,?)",
+        (encrypt_field(texto, dek), encrypt_field("0", dek), encrypt_field(usuario, dek), max_pos + 1, tipo),
     )
+    _log_historico(db, dek, tipo, "criado", texto)
     db.commit()
     return jsonify(ok=True, id=cur.lastrowid, texto=texto)
 
@@ -973,6 +1019,8 @@ def checklist_toggle(tid):
     t      = _decrypt_tarefa(row, dek)
     novo   = "0" if t["feito"] else "1"
     db.execute("UPDATE tarefas SET feito_enc = ? WHERE id = ?", (encrypt_field(novo, dek), tid))
+    evento = "marcado" if novo == "1" else "desmarcado"
+    _log_historico(db, dek, t["tipo"], evento, t["texto"])
     db.commit()
     return jsonify(ok=True, feito=novo == "1")
 
@@ -981,7 +1029,12 @@ def checklist_toggle(tid):
 @login_necessario
 def checklist_excluir(tid):
     from flask import jsonify
-    db = get_db()
+    dek = get_dek()
+    db  = get_db()
+    row = db.execute("SELECT * FROM tarefas WHERE id = ?", (tid,)).fetchone()
+    if row:
+        t = _decrypt_tarefa(row, dek)
+        _log_historico(db, dek, t["tipo"], "excluido", t["texto"])
     db.execute("DELETE FROM tarefas WHERE id = ?", (tid,))
     db.commit()
     return jsonify(ok=True)
@@ -993,12 +1046,17 @@ def checklist_limpar():
     from flask import jsonify
     dek  = get_dek()
     db   = get_db()
-    rows = db.execute("SELECT * FROM tarefas").fetchall()
-    ids  = [r["id"] for r in rows if _decrypt_tarefa(r, dek)["feito"]]
-    for i in ids:
-        db.execute("DELETE FROM tarefas WHERE id = ?", (i,))
+    data = request.get_json(silent=True) or {}
+    tipo = data.get("tipo", "diario")
+    if tipo not in ("diario", "semanal", "mensal"):
+        tipo = "diario"
+    rows = db.execute("SELECT * FROM tarefas WHERE tipo = ?", (tipo,)).fetchall()
+    feitas = [_decrypt_tarefa(r, dek) for r in rows if _decrypt_tarefa(r, dek)["feito"]]
+    for t in feitas:
+        _log_historico(db, dek, tipo, "excluido", t["texto"])
+        db.execute("DELETE FROM tarefas WHERE id = ?", (t["id"],))
     db.commit()
-    return jsonify(ok=True, removidos=len(ids))
+    return jsonify(ok=True, removidos=len(feitas))
 
 
 @app.route("/checklist/<int:tid>/editar", methods=["POST"])
@@ -1014,7 +1072,10 @@ def checklist_editar(tid):
     row = db.execute("SELECT id FROM tarefas WHERE id = ?", (tid,)).fetchone()
     if not row:
         abort(404)
+    row2 = db.execute("SELECT tipo FROM tarefas WHERE id = ?", (tid,)).fetchone()
+    tipo = row2["tipo"] if row2 and row2["tipo"] else "diario"
     db.execute("UPDATE tarefas SET texto_enc = ? WHERE id = ?", (encrypt_field(texto, dek), tid))
+    _log_historico(db, dek, tipo, "editado", texto)
     db.commit()
     return jsonify(ok=True, texto=texto)
 
@@ -1032,6 +1093,49 @@ def checklist_reordenar():
         db.execute("UPDATE tarefas SET posicao = ? WHERE id = ?", (i, int(tid)))
     db.commit()
     return jsonify(ok=True)
+
+
+@app.route("/checklist/historico")
+@login_necessario
+def checklist_historico():
+    from collections import OrderedDict
+    dek  = get_dek()
+    db   = get_db()
+    tipo_filtro = request.args.get("tipo", "todos")
+    if tipo_filtro not in ("todos", "diario", "semanal", "mensal"):
+        tipo_filtro = "todos"
+
+    if tipo_filtro == "todos":
+        rows = db.execute("SELECT * FROM historico ORDER BY criado_em DESC").fetchall()
+    else:
+        rows = db.execute(
+            "SELECT * FROM historico WHERE tipo_lista = ? ORDER BY criado_em DESC",
+            (tipo_filtro,)
+        ).fetchall()
+
+    historico = []
+    for r in rows:
+        try:
+            texto = decrypt_field(r["texto_enc"], dek)
+        except Exception:
+            texto = ""
+        historico.append({
+            "tipo_lista": r["tipo_lista"],
+            "evento":     r["evento"],
+            "texto":      texto,
+            "criado_em":  r["criado_em"] or "",
+        })
+
+    por_data = OrderedDict()
+    for h in historico:
+        data = h["criado_em"][:10] if h["criado_em"] else "?"
+        if data not in por_data:
+            por_data[data] = []
+        por_data[data].append(h)
+
+    return render_template("historico_checklist.html",
+                           por_data=por_data,
+                           tipo_filtro=tipo_filtro)
 
 
 if __name__ == "__main__":

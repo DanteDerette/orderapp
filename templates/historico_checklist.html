@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Histórico — Checklist</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #faf5ff; min-height: 100vh; display: flex; }
+    .main { margin-left: 10%; width: 90%; min-height: 100vh; display: flex; flex-direction: column; }
+    html.mob .main { margin-left: 0 !important; width: 100% !important; }
+
+    .main-header { background: #fff; border-bottom: 1px solid #eee; padding: 8px 20px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 5; }
+    .btn-hamburger { display: none; align-items: center; background: none; border: none; cursor: pointer; padding: 4px 6px; color: #1a1a1a; flex-shrink: 0; }
+    html.mob .btn-hamburger { display: flex !important; }
+    .btn-voltar { color: #7c3aed; text-decoration: none; font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 6px; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .btn-voltar:hover { background: #f3e8ff; }
+    .main-header-titulo { font-size: 13px; font-weight: 700; color: #222; flex: 1; }
+
+    /* Filtro tabs */
+    .tabs { background: #fff; border-bottom: 1px solid #eee; display: flex; padding: 0 20px; }
+    html.mob .tabs { padding: 0 12px; }
+    .tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: #aaa; text-decoration: none; border-bottom: 2.5px solid transparent; transition: color .15s, border-color .15s; white-space: nowrap; }
+    html.mob .tab { padding: 10px 12px; font-size: 12px; }
+    .tab.ativo { color: #7c3aed; border-bottom-color: #7c3aed; }
+    .tab:hover:not(.ativo) { color: #555; }
+
+    /* Conteúdo */
+    .historico-content { padding: 20px; max-width: 640px; padding-bottom: 40px; }
+    html.mob .historico-content { padding: 12px; }
+
+    .vazio { padding: 60px 20px; text-align: center; color: #ccc; font-size: 14px; }
+
+    /* Grupo por data */
+    .data-grupo { margin-bottom: 28px; }
+    .data-titulo { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: .6px; padding: 0 0 8px 0; border-bottom: 1px solid #ede9fe; margin-bottom: 10px; }
+
+    /* Evento */
+    .evento { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
+    .evento:last-child { border-bottom: none; }
+
+    .evento-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .evento-icon.criado    { background: #ecfdf5; color: #059669; }
+    .evento-icon.marcado   { background: #ede9fe; color: #7c3aed; }
+    .evento-icon.desmarcado{ background: #f5f5f5; color: #999; }
+    .evento-icon.excluido  { background: #fff0f0; color: #e53935; }
+    .evento-icon.editado   { background: #eff6ff; color: #2563eb; }
+
+    .evento-body { flex: 1; min-width: 0; }
+    .evento-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 2px; }
+    .evento-label.criado    { color: #059669; }
+    .evento-label.marcado   { color: #7c3aed; }
+    .evento-label.desmarcado{ color: #999; }
+    .evento-label.excluido  { color: #e53935; }
+    .evento-label.editado   { color: #2563eb; }
+
+    .evento-texto { font-size: 14px; color: #222; line-height: 1.4; word-break: break-word; }
+    .evento-meta  { font-size: 11px; color: #bbb; margin-top: 3px; }
+
+    .badge-tipo { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+    .badge-diario   { background: #ede9fe; color: #7c3aed; }
+    .badge-semanal  { background: #dbeafe; color: #2563eb; }
+    .badge-mensal   { background: #dcfce7; color: #059669; }
+
+    .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: none; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+    html.mob .sidebar-overlay { display: block; }
+    .sidebar-overlay.visivel { opacity: 1; pointer-events: auto; }
+  </style>
+  <script>(function(){var mob=window.innerWidth<1024||/Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent)||navigator.maxTouchPoints>1;if(mob)document.documentElement.classList.add('mob');})()</script>
+</head>
+<body>
+  {% set pagina_ativa = 'checklist' %}
+  {% include '_sidebar.html' %}
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <div class="main">
+    <div class="main-header">
+      <button class="btn-hamburger" aria-label="Menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <a href="/checklist" class="btn-voltar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Checklist
+      </a>
+      <span class="main-header-titulo">Histórico</span>
+    </div>
+
+    <div class="tabs">
+      <a href="?tipo=todos"   class="tab {% if tipo_filtro == 'todos'   %}ativo{% endif %}">Todos</a>
+      <a href="?tipo=diario"  class="tab {% if tipo_filtro == 'diario'  %}ativo{% endif %}">Diário</a>
+      <a href="?tipo=semanal" class="tab {% if tipo_filtro == 'semanal' %}ativo{% endif %}">Semanal</a>
+      <a href="?tipo=mensal"  class="tab {% if tipo_filtro == 'mensal'  %}ativo{% endif %}">Mensal</a>
+    </div>
+
+    <div class="historico-content">
+      {% if not por_data %}
+        <div class="vazio">Nenhum evento registrado ainda.</div>
+      {% else %}
+        {% for data, eventos in por_data.items() %}
+        <div class="data-grupo">
+          <div class="data-titulo">{{ data | fmt_data }}</div>
+          {% for h in eventos %}
+          {% set ev = h.evento %}
+          <div class="evento">
+            <div class="evento-icon {{ ev }}">
+              {% if ev == 'criado' %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              {% elif ev == 'marcado' %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              {% elif ev == 'desmarcado' %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9"/></svg>
+              {% elif ev == 'excluido' %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              {% elif ev == 'editado' %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              {% endif %}
+            </div>
+            <div class="evento-body">
+              <div class="evento-label {{ ev }}">
+                {% if ev == 'criado'     %}Criado
+                {% elif ev == 'marcado'  %}Concluído
+                {% elif ev == 'desmarcado' %}Reaberto
+                {% elif ev == 'excluido' %}Excluído
+                {% elif ev == 'editado'  %}Editado
+                {% endif %}
+                {% if tipo_filtro == 'todos' %}
+                  <span class="badge-tipo badge-{{ h.tipo_lista }}">
+                    {% if h.tipo_lista == 'diario' %}Diário
+                    {% elif h.tipo_lista == 'semanal' %}Semanal
+                    {% elif h.tipo_lista == 'mensal' %}Mensal
+                    {% endif %}
+                  </span>
+                {% endif %}
+              </div>
+              <div class="evento-texto">{{ h.texto }}</div>
+              <div class="evento-meta">{{ h.criado_em | fmt_hora }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

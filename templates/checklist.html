@@ -57,6 +57,14 @@
     .fab { position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 88px); right: 24px; width: 56px; height: 56px; border-radius: 50%; background: #7c3aed; color: #fff; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 20px rgba(124,58,237,.35); cursor: pointer; z-index: 500; transition: transform .15s; -webkit-tap-highlight-color: transparent; }
     .fab:active { transform: scale(0.92); }
 
+    /* Abas */
+    .tabs { background: #fff; border-bottom: 1px solid #eee; display: flex; gap: 0; padding: 0 20px; }
+    html.mob .tabs { padding: 0 12px; }
+    .tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: #aaa; text-decoration: none; border-bottom: 2.5px solid transparent; transition: color .15s, border-color .15s; white-space: nowrap; }
+    html.mob .tab { padding: 10px 14px; font-size: 12px; }
+    .tab.ativo { color: #7c3aed; border-bottom-color: #7c3aed; }
+    .tab:hover:not(.ativo) { color: #555; }
+
     .vazio { padding: 60px 20px; text-align: center; color: #ccc; font-size: 14px; }
 
     .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 999; display: none; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
@@ -77,6 +85,15 @@
       </button>
       <span class="main-header-titulo">Checklist</span>
       <button class="btn-limpar" id="btn-limpar" style="display:none" onclick="limparConcluidas()">Limpar concluídas</button>
+      <a href="/checklist/historico" style="color:#bbb;display:flex;align-items:center;padding:4px 6px;border-radius:6px;text-decoration:none;transition:color .15s" title="Histórico" onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#bbb'">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </a>
+    </div>
+
+    <div class="tabs">
+      <a href="/checklist?tipo=diario"  class="tab {% if tipo_ativo == 'diario'  %}ativo{% endif %}">Diário</a>
+      <a href="/checklist?tipo=semanal" class="tab {% if tipo_ativo == 'semanal' %}ativo{% endif %}">Semanal</a>
+      <a href="/checklist?tipo=mensal"  class="tab {% if tipo_ativo == 'mensal'  %}ativo{% endif %}">Mensal</a>
     </div>
 
     <div class="lista" id="lista">
@@ -111,6 +128,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <script>
+    var TIPO_ATIVO = "{{ tipo_ativo }}";
+
     // ── Utilidades ──────────────────────────────────────────────
     function esc(s) {
       return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -214,7 +233,7 @@
       fetch('/checklist/novo', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({texto: texto})
+        body: JSON.stringify({texto: texto, tipo: TIPO_ATIVO})
       })
       .then(function(r) { return r.json(); })
       .then(function(d) {
@@ -319,7 +338,11 @@
 
     // ── Limpar concluídas ───────────────────────────────────────
     function limparConcluidas() {
-      fetch('/checklist/limpar-concluidas', {method: 'POST'})
+      fetch('/checklist/limpar-concluidas', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tipo: TIPO_ATIVO})
+      })
         .then(function(r) { return r.json(); })
         .then(function(d) {
           if (!d.ok) return;
