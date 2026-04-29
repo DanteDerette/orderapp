@@ -1001,7 +1001,7 @@ def checklist():
 
         # Só mostra tarefas que já existiam naquele dia
         rows = db.execute(
-            "SELECT * FROM tarefas WHERE tipo = ? AND date(criado_em) <= ? "
+            "SELECT * FROM tarefas WHERE tipo = ? AND date(criado_em, 'localtime') <= ? "
             "ORDER BY posicao ASC, criado_em ASC", (tipo, data_str)
         ).fetchall()
 
