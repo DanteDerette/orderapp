@@ -1095,6 +1095,37 @@ def checklist_reordenar():
     return jsonify(ok=True)
 
 
+@app.route("/checklist/substituir", methods=["POST"])
+@login_necessario
+def checklist_substituir():
+    from flask import jsonify
+    dek  = get_dek()
+    db   = get_db()
+    data = request.get_json(silent=True) or {}
+    tipo = data.get("tipo", "diario")
+    if tipo not in ("diario", "semanal", "mensal"):
+        tipo = "diario"
+    tarefas_raw = data.get("tarefas", [])
+    if not isinstance(tarefas_raw, list):
+        return jsonify(ok=False), 400
+    tarefas = [sanitize(str(t), 500).strip() for t in tarefas_raw[:100]]
+    tarefas = [t for t in tarefas if t]
+    rows = db.execute("SELECT * FROM tarefas WHERE tipo = ?", (tipo,)).fetchall()
+    for r in rows:
+        t = _decrypt_tarefa(r, dek)
+        _log_historico(db, dek, tipo, "excluido", t["texto"])
+    db.execute("DELETE FROM tarefas WHERE tipo = ?", (tipo,))
+    usuario = session.get("usuario_nome", "")
+    for i, texto in enumerate(tarefas):
+        db.execute(
+            "INSERT INTO tarefas (texto_enc, feito_enc, criado_por_enc, posicao, tipo) VALUES (?,?,?,?,?)",
+            (encrypt_field(texto, dek), encrypt_field("0", dek), encrypt_field(usuario, dek), i, tipo),
+        )
+        _log_historico(db, dek, tipo, "criado", texto)
+    db.commit()
+    return jsonify(ok=True, criados=len(tarefas))
+
+
 @app.route("/checklist/historico")
 @login_necessario
 def checklist_historico():
