@@ -986,10 +986,6 @@ def checklist():
     if tipo not in ("diario", "semanal", "mensal"):
         tipo = "diario"
 
-    rows = db.execute(
-        "SELECT * FROM tarefas WHERE tipo = ? ORDER BY posicao ASC, criado_em ASC", (tipo,)
-    ).fetchall()
-
     if tipo == "diario":
         hoje_dt  = date.today()
         hoje_str = hoje_dt.isoformat()
@@ -1002,6 +998,12 @@ def checklist():
             data_dt = hoje_dt
         data_str = data_dt.isoformat()
         is_hoje  = data_str == hoje_str
+
+        # Só mostra tarefas que já existiam naquele dia
+        rows = db.execute(
+            "SELECT * FROM tarefas WHERE tipo = ? AND date(criado_em) <= ? "
+            "ORDER BY posicao ASC, criado_em ASC", (tipo, data_str)
+        ).fetchall()
 
         conclusoes = {r[0] for r in db.execute(
             "SELECT tarefa_id FROM checklist_conclusoes WHERE data = ?", (data_str,)
@@ -1039,6 +1041,9 @@ def checklist():
             data_seguinte=data_seg, data_formatada=data_fmt,
             is_hoje=is_hoje)
     else:
+        rows = db.execute(
+            "SELECT * FROM tarefas WHERE tipo = ? ORDER BY posicao ASC, criado_em ASC", (tipo,)
+        ).fetchall()
         tarefas = [_decrypt_tarefa(r, dek) for r in rows]
         return render_template("checklist.html",
             tarefas=tarefas, tipo_ativo=tipo,
