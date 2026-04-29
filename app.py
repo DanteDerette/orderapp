@@ -179,6 +179,14 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS checklist_conclusoes (
+            tarefa_id INTEGER NOT NULL,
+            data      TEXT    NOT NULL,
+            PRIMARY KEY (tarefa_id, data)
+        )
+    """)
+
     if db.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         _seed_users(db)
 
@@ -971,16 +979,72 @@ def _decrypt_tarefa(row, dek: bytes) -> dict:
 @app.route("/checklist")
 @login_necessario
 def checklist():
+    from datetime import date, timedelta
     dek  = get_dek()
     db   = get_db()
     tipo = request.args.get("tipo", "diario")
     if tipo not in ("diario", "semanal", "mensal"):
         tipo = "diario"
+
     rows = db.execute(
         "SELECT * FROM tarefas WHERE tipo = ? ORDER BY posicao ASC, criado_em ASC", (tipo,)
     ).fetchall()
-    tarefas = [_decrypt_tarefa(r, dek) for r in rows]
-    return render_template("checklist.html", tarefas=tarefas, tipo_ativo=tipo)
+
+    if tipo == "diario":
+        hoje_dt  = date.today()
+        hoje_str = hoje_dt.isoformat()
+        data_param = request.args.get("data", hoje_str)
+        try:
+            data_dt = date.fromisoformat(data_param)
+            if data_dt > hoje_dt:
+                data_dt = hoje_dt
+        except ValueError:
+            data_dt = hoje_dt
+        data_str = data_dt.isoformat()
+        is_hoje  = data_str == hoje_str
+
+        conclusoes = {r[0] for r in db.execute(
+            "SELECT tarefa_id FROM checklist_conclusoes WHERE data = ?", (data_str,)
+        ).fetchall()}
+
+        # Migração única: primeira vez visualizando hoje — importa feito_enc existente
+        if is_hoje and not conclusoes:
+            for r in rows:
+                t = _decrypt_tarefa(r, dek)
+                if t["feito"]:
+                    db.execute(
+                        "INSERT OR IGNORE INTO checklist_conclusoes (tarefa_id, data) VALUES (?,?)",
+                        (t["id"], data_str)
+                    )
+            db.commit()
+            conclusoes = {r[0] for r in db.execute(
+                "SELECT tarefa_id FROM checklist_conclusoes WHERE data = ?", (data_str,)
+            ).fetchall()}
+
+        tarefas = []
+        for r in rows:
+            t = _decrypt_tarefa(r, dek)
+            t["feito"] = t["id"] in conclusoes
+            tarefas.append(t)
+
+        meses = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"]
+        dias  = ["seg","ter","qua","qui","sex","sáb","dom"]
+        data_fmt = f"{data_dt.day} {meses[data_dt.month-1]}, {dias[data_dt.weekday()]}"
+        data_ant = (data_dt - timedelta(days=1)).isoformat()
+        data_seg = (data_dt + timedelta(days=1)).isoformat() if not is_hoje else None
+
+        return render_template("checklist.html",
+            tarefas=tarefas, tipo_ativo=tipo,
+            data_atual=data_str, data_anterior=data_ant,
+            data_seguinte=data_seg, data_formatada=data_fmt,
+            is_hoje=is_hoje)
+    else:
+        tarefas = [_decrypt_tarefa(r, dek) for r in rows]
+        return render_template("checklist.html",
+            tarefas=tarefas, tipo_ativo=tipo,
+            data_atual=None, data_anterior=None,
+            data_seguinte=None, data_formatada=None,
+            is_hoje=True)
 
 
 @app.route("/checklist/novo", methods=["POST"])
@@ -1010,19 +1074,35 @@ def checklist_novo():
 @app.route("/checklist/<int:tid>/toggle", methods=["POST"])
 @login_necessario
 def checklist_toggle(tid):
+    from datetime import date
     from flask import jsonify
     dek = get_dek()
     db  = get_db()
     row = db.execute("SELECT * FROM tarefas WHERE id = ?", (tid,)).fetchone()
     if not row:
         abort(404)
-    t      = _decrypt_tarefa(row, dek)
-    novo   = "0" if t["feito"] else "1"
-    db.execute("UPDATE tarefas SET feito_enc = ? WHERE id = ?", (encrypt_field(novo, dek), tid))
-    evento = "marcado" if novo == "1" else "desmarcado"
-    _log_historico(db, dek, t["tipo"], evento, t["texto"])
-    db.commit()
-    return jsonify(ok=True, feito=novo == "1")
+    t = _decrypt_tarefa(row, dek)
+
+    if t["tipo"] == "diario":
+        hoje = date.today().isoformat()
+        existe = db.execute(
+            "SELECT 1 FROM checklist_conclusoes WHERE tarefa_id = ? AND data = ?", (tid, hoje)
+        ).fetchone()
+        if existe:
+            db.execute("DELETE FROM checklist_conclusoes WHERE tarefa_id = ? AND data = ?", (tid, hoje))
+            feito = False
+        else:
+            db.execute("INSERT OR IGNORE INTO checklist_conclusoes (tarefa_id, data) VALUES (?,?)", (tid, hoje))
+            feito = True
+        _log_historico(db, dek, "diario", "marcado" if feito else "desmarcado", t["texto"])
+        db.commit()
+        return jsonify(ok=True, feito=feito)
+    else:
+        novo   = "0" if t["feito"] else "1"
+        db.execute("UPDATE tarefas SET feito_enc = ? WHERE id = ?", (encrypt_field(novo, dek), tid))
+        _log_historico(db, dek, t["tipo"], "marcado" if novo == "1" else "desmarcado", t["texto"])
+        db.commit()
+        return jsonify(ok=True, feito=novo == "1")
 
 
 @app.route("/checklist/<int:tid>/excluir", methods=["POST"])
@@ -1035,6 +1115,7 @@ def checklist_excluir(tid):
     if row:
         t = _decrypt_tarefa(row, dek)
         _log_historico(db, dek, t["tipo"], "excluido", t["texto"])
+    db.execute("DELETE FROM checklist_conclusoes WHERE tarefa_id = ?", (tid,))
     db.execute("DELETE FROM tarefas WHERE id = ?", (tid,))
     db.commit()
     return jsonify(ok=True)
@@ -1043,6 +1124,7 @@ def checklist_excluir(tid):
 @app.route("/checklist/limpar-concluidas", methods=["POST"])
 @login_necessario
 def checklist_limpar():
+    from datetime import date
     from flask import jsonify
     dek  = get_dek()
     db   = get_db()
@@ -1050,11 +1132,26 @@ def checklist_limpar():
     tipo = data.get("tipo", "diario")
     if tipo not in ("diario", "semanal", "mensal"):
         tipo = "diario"
-    rows = db.execute("SELECT * FROM tarefas WHERE tipo = ?", (tipo,)).fetchall()
-    feitas = [_decrypt_tarefa(r, dek) for r in rows if _decrypt_tarefa(r, dek)["feito"]]
-    for t in feitas:
-        _log_historico(db, dek, tipo, "excluido", t["texto"])
-        db.execute("DELETE FROM tarefas WHERE id = ?", (t["id"],))
+
+    if tipo == "diario":
+        hoje = date.today().isoformat()
+        rows = db.execute(
+            "SELECT t.* FROM tarefas t "
+            "JOIN checklist_conclusoes c ON c.tarefa_id = t.id "
+            "WHERE t.tipo = 'diario' AND c.data = ?", (hoje,)
+        ).fetchall()
+        feitas = [_decrypt_tarefa(r, dek) for r in rows]
+        for t in feitas:
+            _log_historico(db, dek, tipo, "excluido", t["texto"])
+            db.execute("DELETE FROM checklist_conclusoes WHERE tarefa_id = ?", (t["id"],))
+            db.execute("DELETE FROM tarefas WHERE id = ?", (t["id"],))
+    else:
+        rows = db.execute("SELECT * FROM tarefas WHERE tipo = ?", (tipo,)).fetchall()
+        feitas = [_decrypt_tarefa(r, dek) for r in rows if _decrypt_tarefa(r, dek)["feito"]]
+        for t in feitas:
+            _log_historico(db, dek, tipo, "excluido", t["texto"])
+            db.execute("DELETE FROM tarefas WHERE id = ?", (t["id"],))
+
     db.commit()
     return jsonify(ok=True, removidos=len(feitas))
 
@@ -1114,6 +1211,7 @@ def checklist_substituir():
     for r in rows:
         t = _decrypt_tarefa(r, dek)
         _log_historico(db, dek, tipo, "excluido", t["texto"])
+        db.execute("DELETE FROM checklist_conclusoes WHERE tarefa_id = ?", (t["id"],))
     db.execute("DELETE FROM tarefas WHERE tipo = ?", (tipo,))
     usuario = session.get("usuario_nome", "")
     for i, texto in enumerate(tarefas):
