@@ -61,67 +61,13 @@
   </div>
 
   <nav class="sidebar-nav">
-    <a href="/caixas" class="sidebar-item {% if pagina_ativa == 'caixas' %}ativo{% endif %}" title="Caixas">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-      </svg>
-      <div class="sidebar-item-text">
-        <span class="sidebar-item-category">Financeiro</span>
-        <span class="sidebar-item-name">Caixas</span>
-      </div>
-    </a>
-    <a href="/faturas" class="sidebar-item {% if pagina_ativa == 'faturas' %}ativo{% endif %}" title="Faturas de Cartões">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
-      </svg>
-      <div class="sidebar-item-text">
-        <span class="sidebar-item-category">Financeiro</span>
-        <span class="sidebar-item-name">Faturas de Cartões</span>
-      </div>
-    </a>
-    <a href="/patrimonio" class="sidebar-item {% if pagina_ativa == 'patrimonio' %}ativo{% endif %}" title="Patrimônio Líquido">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-      </svg>
-      <div class="sidebar-item-text">
-        <span class="sidebar-item-category">Financeiro</span>
-        <span class="sidebar-item-name">Patrimônio Líquido</span>
-      </div>
-    </a>
-    <a href="/checklist?tipo=diario" class="sidebar-item {% if pagina_ativa == 'checklist' and (tipo_ativo|default('diario')) == 'diario' %}ativo{% endif %}" title="Checklist Diário">
+    <a href="/checklist" class="sidebar-item {% if pagina_ativa == 'checklist' %}ativo{% endif %}" title="Checklist Diário">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
       </svg>
       <div class="sidebar-item-text">
         <span class="sidebar-item-category">Checklist</span>
         <span class="sidebar-item-name">Diário</span>
-      </div>
-    </a>
-    <a href="/checklist?tipo=semanal" class="sidebar-item {% if pagina_ativa == 'checklist' and (tipo_ativo|default('')) == 'semanal' %}ativo{% endif %}" title="Checklist Semanal">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-      </svg>
-      <div class="sidebar-item-text">
-        <span class="sidebar-item-category">Checklist</span>
-        <span class="sidebar-item-name">Semanal</span>
-      </div>
-    </a>
-    <a href="/checklist?tipo=mensal" class="sidebar-item {% if pagina_ativa == 'checklist' and (tipo_ativo|default('')) == 'mensal' %}ativo{% endif %}" title="Checklist Mensal">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="8" y2="18"/><line x1="12" y1="18" x2="12" y2="18"/>
-      </svg>
-      <div class="sidebar-item-text">
-        <span class="sidebar-item-category">Checklist</span>
-        <span class="sidebar-item-name">Mensal</span>
-      </div>
-    </a>
-    <a href="/contas-receber" class="sidebar-item {% if pagina_ativa == 'contas_receber' %}ativo{% endif %}" title="Contas a Receber">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-      </svg>
-      <div class="sidebar-item-text">
-        <span class="sidebar-item-category">Financeiro</span>
-        <span class="sidebar-item-name">Contas a Receber</span>
       </div>
     </a>
   </nav>

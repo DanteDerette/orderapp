@@ -267,7 +267,7 @@ def login():
                 session["usuario_id"]   = row["id"]
                 session["usuario_nome"] = row["nome"]
                 session["_dek_enc"]     = _session_fernet().encrypt(dek).decode()
-                return redirect(url_for("caixas"))
+                return redirect(url_for("checklist"))
             except Exception:
                 pass  # senha correta mas DEK corrompida — trata como falha
 
@@ -283,7 +283,7 @@ def logout():
 
 @app.route("/")
 def index():
-    return redirect(url_for("caixas"))
+    return redirect(url_for("checklist"))
 
 
 # ── Helpers de criptografia ──────────────────────────────────────────
