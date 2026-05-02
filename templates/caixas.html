@@ -220,8 +220,7 @@
           <a class="caixa-card" href="/caixas/{{ c.id }}">
             <div class="caixa-card-banco">{{ c.banco }}</div>
             <div class="caixa-card-bottom">
-              <span class="caixa-card-meta">{{ c.data.strftime('%d/%m/%Y') if c.data else '—' }}</span>
-              <span class="caixa-card-total">R$ {{ c.valor|brl }}</span>
+<span class="caixa-card-total">R$ {{ c.valor|brl }}</span>
               <span class="caixa-card-ver">Ver</span>
             </div>
           </a>
