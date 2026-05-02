@@ -204,10 +204,6 @@
                 <td><a class="btn-ver" href="/caixas/{{ c.id }}">ver →</a></td>
               </tr>
               {% endfor %}
-              <tr class="tr-total">
-                <td colspan="2"><span class="total-label">Total {{ dia.data.strftime('%d/%m/%Y') if dia.data else '—' }}</span></td>
-                <td colspan="2"><span class="total-val">R$ {{ dia.total|brl }}</span></td>
-              </tr>
             {% endfor %}
             </tbody>
           </table>
@@ -220,15 +216,11 @@
       <div class="caixa-cards">
         {% if dias %}
           {% for dia in dias %}
-          <div class="dia-header">
-            <span class="dia-header-data">{{ dia.data.strftime('%d/%m/%Y') if dia.data else '—' }}</span>
-            <span class="dia-header-total">R$ {{ dia.total|brl }}</span>
-          </div>
           {% for c in dia.itens %}
           <a class="caixa-card" href="/caixas/{{ c.id }}">
             <div class="caixa-card-banco">{{ c.banco }}</div>
             <div class="caixa-card-bottom">
-              <span class="caixa-card-meta"></span>
+              <span class="caixa-card-meta">{{ c.data.strftime('%d/%m/%Y') if c.data else '—' }}</span>
               <span class="caixa-card-total">R$ {{ c.valor|brl }}</span>
               <span class="caixa-card-ver">Ver</span>
             </div>
